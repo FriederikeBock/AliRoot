@@ -68,8 +68,9 @@ AliGenerator* CreatePythia8Gen(	Float_t e_cms,
 	// Event list
 	gener->SetEventListRange(-1, -1);
 
-	// color reconnection
-	(AliPythia8::Instance())->ReadString(Form("Tune:pp = %i", tune));//CR
+	// setting tune
+    gener->SetTune(tune);
+// 	(AliPythia8::Instance())->ReadString(Form("Tune:pp = %i", tune));//CR
 
 	//random seed based on time
 	(AliPythia8::Instance())->ReadString("Random:setSeed = on");
@@ -82,7 +83,6 @@ AliGenerator* CreatePythia8Gen(	Float_t e_cms,
 	
 	
 	(AliPythia8::Instance())->ReadString(Form("MultipartonInteractions:kFactor = %i", kF));
-	(AliPythia8::Instance())->ReadString("111: mayDecay = false ! pi0 stable");
 	
 	return gener;
 }
