@@ -27,35 +27,35 @@ AliEveAODTracks::~AliEveAODTracks()
 TString AliEveAODTracks::GetTitle(AliAODTrack* t)
 {
     TString s("");
-    
+
     Int_t label = t->GetLabel(), index = t->GetID();
     TString idx(index == kMinInt ? "<undef>" : Form("%d", index));
     TString lbl(label == kMinInt ? "<undef>" : Form("%d", label));
-    
+
     Double_t p[3], v[3];
     t->GetXYZ(v);
     t->GetPxPyPz(p);
-    
+
     s = Form("Index=%s, Label=%s\nChg=%d, Pdg=%d\n"
              "P  = (%.3f, %.3f, %.3f)\n"
              "V  = (%.3f, %.3f, %.3f)\n",
              idx.Data(), lbl.Data(), t->Charge(), AliPID::ParticleCode(t->GetMostProbablePID()),
              p[0], p[1], p[2],
              v[0], v[1], v[2]);
-    
+
     return s;
 }
 
 void AliEveAODTracks::AddParam(AliEveTrack* track, const AliExternalTrackParam* tp)
 {
     // Add additional track parameters as a path-mark to track.
-    
+
     if (tp == 0) return;
-    
+
     Double_t pbuf[3], vbuf[3];
     tp->GetXYZ(vbuf);
     tp->GetPxPyPz(pbuf);
-    
+
     TEvePathMark pm(TEvePathMark::kReference);
     pm.fV.Set(vbuf);
     pm.fP.Set(pbuf);
@@ -65,19 +65,19 @@ void AliEveAODTracks::AddParam(AliEveTrack* track, const AliExternalTrackParam* 
 AliEveTrack* AliEveAODTracks::MakeTrack(AliAODTrack *at, TEveTrackList* cont)
 {
     // Make a standard track representation and put it into given container.
-    
+
     AliEveTrack* track = new AliEveTrack(at, cont->GetPropagator());
     track->SetAttLineAttMarker(cont);
     track->SetName(Form("AliEveTrack %d", at->GetID()));
     track->SetElementTitle(GetTitle(at));
     track->SetSourceObject(at);
-    
+
     if (at->IsOn(AliAODTrack::kTPCrefit))
     {
         AddParam(track, at->GetInnerParam());
         AddParam(track, at->GetOuterParam());
     }
-    
+
     return track;
 }
 
@@ -85,9 +85,9 @@ AliEveTrack* AliEveAODTracks::MakeTrack(AliAODTrack *at, TEveTrackList* cont)
 TEveElementList* AliEveAODTracks::ByPID()
 {
     // Import AOD tracks, separate them into several containers by PID
-    
+
     cout<<"*** AliEveAODTracks::ByPID() ***"<<endl;
-    
+
     TEnv settings;
     AliEveInit::GetConfig(&settings);
 
@@ -108,15 +108,15 @@ TEveElementList* AliEveAODTracks::ByPID()
     colors[12]= settings.GetValue("tracks.byType.kaon0",801);
     colors[13]= settings.GetValue("tracks.byType.elecon",920);
     colors[14]= settings.GetValue("tracks.byType.unknown",920);
-    
+
 
     TEveElementList* cont = new TEveElementList("AOD Tracks by PID");
     gEve->AddElement(cont);
-    
+
     const Int_t   nCont = 15;
     TEveTrackList *tl[nCont];
     Int_t          tc[nCont];
-    
+
     tl[0] = new TEveTrackList("Electrons");
     tl[1] = new TEveTrackList("Muons");
     tl[2] = new TEveTrackList("Pions");
@@ -141,23 +141,23 @@ TEveElementList* AliEveAODTracks::ByPID()
         tl[i]->SetLineWidth(width);
         cont->AddElement(tl[i]);
     }
-    
+
     int pid = -1;
     int count = 0;
     AliAODEvent *aod = AliEveEventManager::Instance()->AssertAOD();
     AliAODTrack* at = NULL;
-    
+
     for (Int_t n = 0; n < aod->GetNumberOfTracks(); ++n)
     {
         at = (AliAODTrack*)aod->GetTrack(n);
-        
+
         bool good_cont = true;
         string trackSelection = settings.GetValue("tracks.selection","");
-        
+
         if(trackSelection == "ITSin_noTPCin"){
             good_cont = at->IsOn(AliESDtrack::kITSin && !at->IsOn(AliESDtrack::kTPCin));
         }
-        else if(trackSelection == "noTISpureSA"){
+        else if(trackSelection == "noITSpureSA"){
             good_cont = !at->IsOn(AliESDtrack::kITSpureSA);
         }
         else if(trackSelection == "TPCrefit"){
@@ -166,16 +166,16 @@ TEveElementList* AliEveAODTracks::ByPID()
         else if(trackSelection == "TPCrefit_ITSrefit"){
             good_cont = at->IsOn(AliESDtrack::kTPCrefit) && at->IsOn(AliESDtrack::kITSrefit);
         }
-        
+
         if(good_cont)
         {
             pid = at->GetMostProbablePID();
             TEveTrackList* tlist = tl[pid];
             ++tc[pid];
             ++count;
-            
+
             AliEveTrack* track = MakeTrack(at, tlist);
-            
+
             track->SetName(Form("AOD Track idx=%d, pid=%d", at->GetID(), pid));
             tlist->AddElement(track);
         }
@@ -189,9 +189,9 @@ TEveElementList* AliEveAODTracks::ByPID()
     }
     cont->SetTitle(Form("N all tracks = %d", count));
     cont->FindListTreeItem(gEve->GetListTree())->SetOpen(kTRUE);
-    
+
     gEve->Redraw3D();
-    
+
     return cont;
 }
 

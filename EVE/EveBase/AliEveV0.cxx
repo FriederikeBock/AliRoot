@@ -11,6 +11,7 @@
 
 #include <TEveTrackPropagator.h>
 #include <TEveManager.h>
+#include <AliEveInit.h>
 
 #include <TPolyLine3D.h>
 #include <TColor.h>
@@ -83,19 +84,54 @@ AliEveV0::AliEveV0(TEveRecTrack* tNeg, TEveRecTrack* tPos,
   fPickable = kTRUE;
   fMainColorPtr = &fMarkerColor;
 
-  fMarkerStyle = 2;
-  fMarkerColor = kSpring + 6;
-  fMarkerSize  = 1;
+  TEnv settings;
+  AliEveInit::GetConfig(&settings);
+  Color_t colors[3];
+  // default color scheme by type:
+  colors[0]                 = settings.GetValue("vzero.line",418);
+  colors[1]                 = settings.GetValue("vzero.negTrack",602);
+  colors[2]                 = settings.GetValue("vzero.posTrack",633);
 
-  fPointingLine->SetLineColor(fMarkerColor);
-  fPointingLine->SetLineWidth(2);
+  Size_t lineWidth          = settings.GetValue("vzero.lineWidth",2);
+  Size_t lineWidthDaughter  = settings.GetValue("vzero.daughter.lineWidth",2);
+  Style_t style             = settings.GetValue("vzero.lineStyle",1);
+  Style_t styleDaugther     = settings.GetValue("vzero.daughter.lineStyle",1);
+  Int_t highLightGamma      = settings.GetValue("vzero.gamma.highlight",0);
+
+  if (highLightGamma > 0 ){
+      Float_t invMassGammaAsumpt = GetInvMass(-11,11);
+
+      if ( invMassGammaAsumpt < 0.1){
+          colors[0]                 = settings.GetValue("vzero.gamma.line",418);
+          colors[1]                 = settings.GetValue("vzero.gamma.negTrack",602);
+          colors[2]                 = settings.GetValue("vzero.gamma.posTrack",633);
+          lineWidth                 = settings.GetValue("vzero.gamma.lineWidth",2);
+          lineWidthDaughter         = settings.GetValue("vzero.gamma.daughter.lineWidth",2);
+          style                     = settings.GetValue("vzero.gamma.lineStyle",1);
+          styleDaugther             = settings.GetValue("vzero.gamma.daugther.lineStyle",1);
+      }
+  }
+
+  fPointingLine->SetLineColor(colors[0]);
+  fPointingLine->SetLineWidth(lineWidth);
+  fPointingLine->SetLineStyle(style);
   fPointingLine->IncDenyDestroy();
   AddElement(fPointingLine);
 
-  fPosTrack->SetLineColor(2);  // red
-  fPosTrack->SetStdTitle();
-  fNegTrack->SetLineColor(7);  // light blue
+  // Initialize neg particle
+  fNegTrack->SetLineColor(colors[1]);
+  fNegTrack->SetLineWidth(lineWidthDaughter);
+  fNegTrack->SetLineStyle(styleDaugther);
   fNegTrack->SetStdTitle();
+
+  // Initialize pos particle
+  fPosTrack->SetLineColor(colors[2]);
+  fPosTrack->SetLineWidth(lineWidthDaughter);
+  fPosTrack->SetLineStyle(styleDaugther);
+  fPosTrack->SetStdTitle();
+
+  fRnrStyleNeg->SetMaxR(settings.GetValue("vzero.trackDepth",430.0));
+  fRnrStylePos->SetMaxR(settings.GetValue("vzero.trackDepth",430.0));
 
   fNegTrack->IncDenyDestroy();
   AddElement(fNegTrack);
@@ -139,7 +175,7 @@ Float_t AliEveV0::GetInvMass(Int_t nPdgCode, Int_t pPdgCode) const
   Double_t nMass=TDatabasePDG::Instance()->GetParticle(nPdgCode)->Mass();
   Double_t pMass=TDatabasePDG::Instance()->GetParticle(pPdgCode)->Mass();
 
-  printf("\n check the mass of the particle negative %.5f positive %.5f \n",nMass,pMass);
+//   printf("\n check the mass of the particle negative %.5f positive %.5f \n",nMass,pMass);
 
   Double_t eNeg = TMath::Sqrt(nMass*nMass + lNegMomentum.Mag2());
   Double_t ePos = TMath::Sqrt(pMass*pMass + lPosMomentum.Mag2());
@@ -374,12 +410,12 @@ void AliEveV0List::FilterByCheckedPidMinProb(Int_t rFlag,Int_t rDaughter, Int_t 
     if     (!rDaughter) {// Negative daughter checked
       pid  = v0->GetNegMaxProbPdg();
       prob = v0->GetNegMaxProbPid();
-      show = (pid == fNegCheckedPid && prob > fNegCheckedProb) || !rFlag ; 
+      show = (pid == fNegCheckedPid && prob > fNegCheckedProb) || !rFlag ;
     }
     else if (rDaughter) {// Positive daughter checked
       pid = v0->GetPosMaxProbPdg();
       prob = v0->GetPosMaxProbPid();
-      show = (pid == fPosCheckedPid && prob > fPosCheckedProb) || !rFlag ; 
+      show = (pid == fPosCheckedPid && prob > fPosCheckedProb) || !rFlag ;
     }
     v0->SetRnrState(show);
   }

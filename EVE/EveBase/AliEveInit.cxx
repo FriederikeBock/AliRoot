@@ -43,117 +43,102 @@ fPath(path)
     //==============================================================================
     // Reading preferences from config file
     //==============================================================================
-    
+
     TEnv settings;
     GetConfig(&settings);
-    
+
     bool autoloadEvents   = settings.GetValue("events.autoload.set",false);   // set autoload by default
     bool fullscreen       = settings.GetValue("fullscreen.mode",false);       // hide left and bottom tabs
-    
+
     TString ocdbStorage   = settings.GetValue("OCDB.default.path","local://$ALICE_ROOT/../src/OCDB");// default path to OCDB
-    
-    
     Info("AliEveInit","\n\nOCDB path:%s\n\n",ocdbStorage.Data());
-    
     //==============================================================================
     // Event Manager and different data sources
     //==============================================================================
-    
+
     AliEveEventManager *man = new AliEveEventManager(defaultDataSource);
-    
+
     AliEveEventManager::SetCdbUri(ocdbStorage);
-    
+
     if (gSystem->Getenv("ALICE_ROOT") != 0)
     {
         gInterpreter->AddIncludePath(Form("%s/MUON", gSystem->Getenv("ALICE_ROOT")));
         gInterpreter->AddIncludePath(Form("%s/MUON/mapping", gSystem->Getenv("ALICE_ROOT")));
     }
-    
+
     AliEveDataSourceOffline *dataSourceOffline  = (AliEveDataSourceOffline*)man->GetDataSourceOffline();
-    
+
     ImportMacros();
     Init();
-    
+
     TEveUtil::AssertMacro("VizDB_scan.C");
-    
+
     TEveBrowser *browser = gEve->GetBrowser();
     browser->ShowCloseTab(kFALSE);
-    
+
     //==============================================================================
     // Geometry, scenes, projections and viewers
     //==============================================================================
-    
     AliEveMultiView *mv = new AliEveMultiView();
     AliEveGeomGentle *geomGentle = new AliEveGeomGentle();
-    
+
     // read all files with names matching "geom_list_XYZ.txt"
     vector<string> detectorsList;
     string geomPath = settings.GetValue("simple.geom.path","${ALICE_ROOT}/EVE/resources/geometry/run2/");
     string alirootBasePath = gSystem->Getenv("ALICE_ROOT");
     size_t alirootPos = geomPath.find("${ALICE_ROOT}");
-    
+
     if(alirootPos != string::npos){
         geomPath.replace(alirootPos,alirootPos+13,alirootBasePath);
     }
-    
+
     TSystemDirectory dir(geomPath.c_str(),geomPath.c_str());
     TList *files = dir.GetListOfFiles();
 
-    if (files)
-    {
+    if (files) {
         TRegexp e("simple_geom_[A-Z,0-9][A-Z,0-9][A-Z,0-9].root");
         TRegexp e2("[A-Z,0-9][A-Z,0-9][A-Z,0-9]");
-        
+
         TSystemFile *file;
         TString fname;
         TIter next(files);
-        
-        while ((file=(TSystemFile*)next()))
-        {
+
+        while ((file=(TSystemFile*)next())) {
             fname = file->GetName();
-            if(fname.Contains(e))
-            {
+            if(fname.Contains(e)) {
                 TString detName = fname(e2);
                 detName.Resize(3);
                 detectorsList.push_back(detName.Data());
             }
         }
-    }
-    else{
+    } else {
         cout<<"\n\nAliEveInit -- geometry files not found!!!"<<endl;
         cout<<"Searched directory was:"<<endl;
         dir.Print();
     }
-    
-    for(int i=0;i<detectorsList.size();i++)
-    {
-        if(settings.GetValue(Form("%s.draw",detectorsList[i].c_str()), true))
-        {
-            if(detectorsList[i]=="TPC" || detectorsList[i]=="MCH")
-            {
+
+    for(int i=0;i<detectorsList.size();i++){
+        if(settings.GetValue(Form("%s.draw",detectorsList[i].c_str()), true)){
+            if(detectorsList[i]=="TPC" || detectorsList[i]=="MCH"){
                 // don't load MUON and standard TPC to R-Phi view
                 mv->InitSimpleGeom(geomGentle->GetSimpleGeom((char*)detectorsList[i].c_str()),true,false);
-            }
-            else if(detectorsList[i]=="RPH")
-            {
+            } else if(detectorsList[i]=="RPH") {
                 // special TPC geom from R-Phi view
                 mv->InitSimpleGeom(geomGentle->GetSimpleGeom("RPH"),false,true,false);
-            }
-            else
-            {
+            } else {
                 mv->InitSimpleGeom(geomGentle->GetSimpleGeom((char*)detectorsList[i].c_str()));
             }
         }
     }
-    
+
     AddMacros();
-    
+
     //==============================================================================
     // Additional GUI components
     //==============================================================================
-    
+
     TEveWindowSlot *slot = TEveWindow::CreateWindowInTab(browser->GetTabRight());
-    
+
     // QA viewer
     /*
      slot = TEveWindow::CreateWindowInTab(browser->GetTabRight());
@@ -165,67 +150,59 @@ fPath(path)
     browser->StartEmbedding(TRootBrowser::kBottom);
     new AliEveEventManagerWindow(man,storageManager,defaultDataSource);
     browser->StopEmbedding("EventCtrl");
-    
+
     slot = TEveWindow::CreateWindowInTab(browser->GetTabRight());
     TEveWindowTab *store_tab = slot->MakeTab();
     store_tab->SetElementNameTitle("WindowStore",
                                    "Undocked windows whose previous container is not known\n"
                                    "are placed here when the main-frame is closed.");
     gEve->GetWindowManager()->SetDefaultContainer(store_tab);
-    
-    
+
+
     //==============================================================================
     // AliEve objects - global tools
     //==============================================================================
-    
+
     AliEveTrackCounter* g_trkcnt = new AliEveTrackCounter("Primary Counter");
     gEve->AddToListTree(g_trkcnt, kFALSE);
-    
-    
+
+
     //==============================================================================
     // Final stuff
     //==============================================================================
-    
-    
+
+
+    SetupBackground();
     // A refresh to show proper window.
     //    gEve->GetViewers()->SwitchColorSet();
-    
+
     browser->MoveResize(0, 0, gClient->GetDisplayWidth(),gClient->GetDisplayHeight() - 32);
     gEve->Redraw3D(true);
     gSystem->ProcessEvents();
-    
+
     //    man->GotoEvent(0);
-    
+
     gEve->EditElement(g_trkcnt);
     gEve->Redraw3D();
-    
-    // move and rotate sub-views
-    browser->GetTabRight()->SetTab(1);
-    TGLViewer *glv1 = mv->Get3DView()->GetGLViewer();
-    TGLViewer *glv2 = mv->GetRPhiView()->GetGLViewer();
-    TGLViewer *glv3 = mv->GetRhoZView()->GetGLViewer();
-    
-    glv1->CurrentCamera().RotateRad(-0.4, 1.0);
-    glv2->CurrentCamera().Dolly(1, kFALSE, kFALSE);
-    glv3->CurrentCamera().Dolly(1, kFALSE, kFALSE);
-    
+
+    SetupCamera();
+
     // Fullscreen
     if(fullscreen){
         ((TGWindow*)gEve->GetBrowser()->GetTabLeft()->GetParent())->Resize(1,0);
         ((TGWindow*)gEve->GetBrowser()->GetTabBottom()->GetParent())->Resize(0,1);
         gEve->GetBrowser()->Layout();
     }
-    
+
     gEve->FullRedraw3D();
     gSystem->ProcessEvents();
     gEve->Redraw3D(true);
-    
+
     man->SetAutoLoad(autoloadEvents);// set autoload by default
-    
+
     if(defaultDataSource == AliEveEventManager::kSourceOffline){
-        if(settings.GetValue("momentum.histograms.all.events.show",false))
-        {
-            ((AliEveDataSourceOffline*)man->GetDataSourceOffline())->GotoEvent(0);
+      ((AliEveDataSourceOffline*)man->GetDataSourceOffline())->GotoEvent(0);
+        if(settings.GetValue("momentum.histograms.all.events.show",false)){
             man->GetMomentumHistogramsDrawer()->DrawAllEvents();
         }
     }
@@ -234,9 +211,9 @@ fPath(path)
 void AliEveInit::Init()
 {
     Info("AliEveInit","Adding standard macros");
-    
+
     AliEveDataSourceOffline *dataSource = (AliEveDataSourceOffline*)AliEveEventManager::Instance()->GetDataSourceOffline();
-    
+
     // Open event
     if (fPath.BeginsWith("alien:"))
     {
@@ -268,26 +245,26 @@ void AliEveInit::AddMacros()
     //==============================================================================
     // Registration of per-event macros
     //==============================================================================
-    
-    
+
+
     // check which macros are available
     TEnv settings;
     GetConfig(&settings);
     vector<string> detectorsList;
     TSystemDirectory dir(Form("%s/../src/EVE/macros/data/",gSystem->Getenv("ALICE_ROOT")),
                          Form("%s/../src/EVE/macros/data/",gSystem->Getenv("ALICE_ROOT")));
-    
+
     TList *files = dir.GetListOfFiles();
-    
+
     if (files)
     {
         TRegexp e("data_vis_[A-Z,0-9][A-Z,0-9][A-Z,0-9].C");
         TRegexp e2("[A-Z,0-9][A-Z,0-9][A-Z,0-9]");
-        
+
         TSystemFile *file;
         TString fname;
         TIter next(files);
-        
+
         while ((file=(TSystemFile*)next()))
         {
             fname = file->GetName();
@@ -299,15 +276,15 @@ void AliEveInit::AddMacros()
             }
         }
     }
-    
+
     AliEveMacroExecutor *exec = AliEveEventManager::Instance()->GetExecutor();
     exec->RemoveMacros(); // remove all old macros
-    
+
     for(int i=0;i<detectorsList.size();i++)
     {
         const char *detector = detectorsList[i].c_str();
         cout<<"Adding macros for "<<detector<<endl;
-        
+
         // add macro for hits
         if(settings.GetValue(Form("%s.hits",detector),false))
         {
@@ -370,9 +347,9 @@ void AliEveInit::AddMacros()
         }
 
     }
-    
+
     // what's below should be removed
-    
+
     bool showMuon         = settings.GetValue("MUON.show", true);              // show MUON's geom
     bool showEMCal        = settings.GetValue("EMCal.show", false);            // show EMCal and PHOS histograms
     bool drawClusters     = settings.GetValue("clusters.show",false);          // show clusters
@@ -380,7 +357,7 @@ void AliEveInit::AddMacros()
     bool drawHits         = settings.GetValue("hits.show",false);              // show hits
     bool drawDigits       = settings.GetValue("digits.show",false);            // show digits
     bool drawAD           = settings.GetValue("AD.show",false);                // show AD hits
-    
+
     if(drawHits)
     {
         exec->AddMacro(new AliEveMacro("SIM Hits ITS", "its_hits.C",    "its_hits",    ""));
@@ -443,12 +420,12 @@ void AliEveInit::ImportMacros()
 {
     // Put macros in the list of browsables, add a macro browser to
     // top-level GUI.
-    
+
     TString  hack = gSystem->pwd(); // Problem with TGFileBrowser cding
-    
+
     TString macdir("$(ALICE_ROOT)/EVE/macros/data");
     gSystem->ExpandPathName(macdir);
-    
+
     TFolder* f = gEve->GetMacroFolder();
     void* dirhandle = gSystem->OpenDirectory(macdir.Data());
     if (dirhandle != 0)
@@ -462,7 +439,7 @@ void AliEveInit::ImportMacros()
                 names.AddLast(new TObjString(filename));
         }
         names.Sort();
-        
+
         for (Int_t ii=0; ii<names.GetEntries(); ++ii)
         {
             TObjString * si = (TObjString*) names.At(ii);
@@ -470,9 +447,9 @@ void AliEveInit::ImportMacros()
         }
     }
     gSystem->FreeDirectory(dirhandle);
-    
+
     gROOT->GetListOfBrowsables()->Add(new TSystemDirectory(macdir.Data(), macdir.Data()));
-    
+
     {
         TEveBrowser   *br = gEve->GetBrowser();
         TGFileBrowser *fb = 0;
@@ -494,7 +471,7 @@ void AliEveInit::ImportMacros()
 void AliEveInit::GetConfig(TEnv *settings)
 {
     TEveException kEH("AliEveInit::GetConfig");
-    
+
     if(settings->ReadFile(Form("%s/.eve_config",gSystem->Getenv("HOME")), kEnvUser) < 0)
     {
         Warning(kEH," could not find .eve_config in home directory! Trying ~/eve_config");
@@ -520,4 +497,52 @@ void AliEveInit::GetConfig(TEnv *settings)
 }
 
 
+void AliEveInit::SetupCamera()
+{
+  // move and rotate sub-views
+  TEnv settings;
+  GetConfig(&settings);
+  AliEveMultiView *mv = AliEveMultiView::Instance();
+  gEve->GetBrowser()->GetTabRight()->SetTab(1);
 
+  TGLViewer *glView3D   = mv->Get3DView()->GetGLViewer();
+  TGLViewer *glViewRPhi = mv->GetRPhiView()->GetGLViewer();
+  TGLViewer *glViewRhoZ = mv->GetRhoZView()->GetGLViewer();
+
+  double angleHorizontal = settings.GetValue("camera.3D.rotation.horizontal",-0.4);// horizontal rotation of 3D view
+  double angleVertical   = settings.GetValue("camera.3D.rotation.vertical",1.0);   // vertical rotation of 3D view
+  double zoom3D          = settings.GetValue("camera.3D.zoom",1.0);// zoom of 3D view
+  double zoomRPhi        = settings.GetValue("camera.R-Phi.zoom",1.0);// zoom of R-Phi view
+  double zoomRhoZ        = settings.GetValue("camera.Rho-Z.zoom",1.0);// zoom of Rho-Z view
+
+  glView3D->CurrentCamera().Reset();
+  glViewRPhi->CurrentCamera().Reset();
+  glViewRhoZ->CurrentCamera().Reset();
+
+  glView3D->CurrentCamera().RotateRad(angleHorizontal, angleVertical);
+  glView3D->CurrentCamera().Dolly(zoom3D, kFALSE, kTRUE);
+  glViewRPhi->CurrentCamera().Dolly(zoomRPhi, kFALSE, kTRUE);
+  glViewRhoZ->CurrentCamera().Dolly(zoomRhoZ, kFALSE, kTRUE);
+}
+
+void AliEveInit::SetupBackground()
+{
+  TEnv settings;
+  GetConfig(&settings);
+  TEveViewerList *viewers = gEve->GetViewers();
+
+  for(TEveElement::List_i i = viewers->BeginChildren(); i != viewers->EndChildren(); i++)
+  {
+    TEveViewer* view = ((TEveViewer*)*i);
+
+    if((strcmp(view->GetName(),"3D View MV")!=0) &&
+      (strcmp(view->GetName(),"RPhi View")!=0) &&
+      (strcmp(view->GetName(),"RhoZ View")!=0)){
+      continue;
+      }
+
+      Int_t color = settings.GetValue("background.color",1);
+    if (color == 2) color = 0;
+    view->GetGLViewer()->SetClearColor(color);
+  }
+}

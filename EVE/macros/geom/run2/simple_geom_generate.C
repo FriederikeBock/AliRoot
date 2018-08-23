@@ -8,9 +8,13 @@
 #include <TEveElement.h>
 #include <TEveGeoNode.h>
 #include <TSystem.h>
+#include <TSystemFile.h>
 #include <TRegexp.h>
+#include <TCollection.h>
+#include <TEnv.h>
 
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -26,6 +30,8 @@ void AddNodes(TGeoNode *node, TEveGeoNode *parent, Int_t depth, Int_t depthmax,T
     if (!nlist) return;
     
     TObjString *nname = (TObjString*)list->At(depthmax-depth); // name of required node in current level
+    
+    cout<<"name:"<<nname->GetString()<<endl;
     
     for (int i = 0; i < nlist->GetEntries(); i++)
     {   // loop over nodes in current level and find the one with matching name
@@ -59,8 +65,8 @@ void simple_geom_generate(char *detectorName="", int runNumber=0)
 
     if (files)
     {
-        TRegexp e("geom_list_[A-Z][A-Z][A-Z].txt");
-        TRegexp e2("[A-Z][A-Z][A-Z]");
+        TRegexp e("geom_list_[A-Z,0-9][A-Z,0-9][A-Z,0-9].txt");
+        TRegexp e2("[A-Z,0-9][A-Z,0-9][A-Z,0-9]");
         
         TSystemFile *file;
         TString fname;
@@ -130,6 +136,11 @@ void simple_geom_generate(char *detectorName="", int runNumber=0)
         ifstream in(Form("geom_list_%s.txt",currentDetector), ios::in);
         cout<<"Adding shapes from file:"<<Form("geom_list_%s.txt",currentDetector)<<endl;
         
+        if(!in){
+            cout<<Form("File geom_list_%s.txt doesn't exist!",currentDetector)<<endl;
+            return;
+        }
+        
         int lineIter=0;
 
         while (true)
@@ -154,7 +165,7 @@ void simple_geom_generate(char *detectorName="", int runNumber=0)
         }
         else
         {
-            eve_tnode->SaveExtract(Form("../../resources/geometry/run2/simple_geom_%s.root",currentDetector),
+            eve_tnode->SaveExtract(Form("../../../resources/geometry/run2/simple_geom_%s.root",currentDetector),
                                    currentDetector, kTRUE);
         }
     }

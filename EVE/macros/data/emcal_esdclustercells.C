@@ -80,7 +80,7 @@ TEveScene  *g_histo2d_s2  = 0;
 TEveCaloLegoOverlay* g_histo2d_lego_overlay = 0;
 
 TEveCaloLego* CreateHistoLego(TEveCaloData* data);
-TEveCalo3D* Create3DView(TEveCaloData* data);
+TEveCalo3D* Create3DView(TEveCaloData* data, Int_t calo);
 //
 
 //
@@ -129,7 +129,7 @@ TH2F* fHistoPH  = 0; /// Histogram with PHOS signals and location
 //TH2F* fHistoneg = 0;
 //TH2F* fHistopos = 0;
 
-Int_t debug = 10;
+Int_t debug = 0;
 
 TGeoNode* fNodeEM    ; /// EMCAL volumes node
 TGeoNode* fNodePH[4] ; /// PHOS volumes nodes
@@ -150,6 +150,8 @@ Float_t    m02higCut[] = { 7.00, 7.00 };    /// Cluster shower shape major axis 
 Float_t    m20lowCut[] = { 0.50, -1.0 };    /// Cluster shower shape lower axis must be larger than this value.
 Float_t       exoCut   = 0.95;              /// Reject clusters with this exoticity value.
 Bool_t     plotcells[] = {kFALSE , kTRUE};  /// Display cells in clusters or cluster center.
+Float_t maxEEMCAL      = 0;
+Float_t maxEPHOS       = 0;
 //
 //------------------------------------------------------------------------------
 
@@ -211,8 +213,9 @@ void emcal_esdclustercells()
     // in case the first event did not have them in the ESD
     // Do it once.
     // Get first EMCal/DCal SM matrix in geometry if non null skip.  
-    if ( !fGeomEM->GetMatrixForSuperModuleFromArray(0) || 
-         !fGeomEM->GetMatrixForSuperModuleFromArray(12) ) 
+    if (  !fGeomEM->GetMatrixForSuperModuleFromArray(0) || 
+         ( fGeomEM->GetNumberOfSuperModules() > 12 && // Check DCal matrices only for Run2
+          !fGeomEM->GetMatrixForSuperModuleFromArray(12)) ) 
     {
       Bool_t ok = kFALSE;
 
@@ -286,33 +289,51 @@ void emcal_esdclustercells()
     // 2d display
     //---------------------------
     
-    TEveCaloDataHist* data = new TEveCaloDataHist();
+    TEveCaloDataHist* dataEMC = new TEveCaloDataHist();
     AliEveEventManager *manager = AliEveEventManager::Instance();
-    cout<<"\n\n adding 2d data to event manager"<<endl;
-    manager->RegisterTransient(data);
+    cout<<"\n\n adding 2d dataEMC to event manager"<<endl;
+    manager->RegisterTransient(dataEMC);
     
-    data->AddHistogram(fHistoEM);
-    data->RefSliceInfo(0).Setup("EMCell:", 0, kOrange+7);
-    data->AddHistogram(fHistoPH);
-    data->RefSliceInfo(1).Setup("PHCell:", 0, kYellow);
+    dataEMC->AddHistogram(fHistoEM);
+    dataEMC->RefSliceInfo(0).Setup("EMCell:", 0, kOrange+7);
     
-    //  data->AddHistogram(fHistoneg);
-    //  data->RefSliceInfo(3).Setup("NegCg:", 0, kBlue);
-    //  data->AddHistogram(fHistopos);
-    //  data->RefSliceInfo(4).Setup("PosCg:", 0, kRed);
+    //  dataEMC->AddHistogram(fHistoneg);
+    //  dataEMC->RefSliceInfo(3).Setup("NegCg:", 0, kBlue);
+    //  dataEMC->AddHistogram(fHistopos);
+    //  dataEMC->RefSliceInfo(4).Setup("PosCg:", 0, kRed);
     
-    data->GetEtaBins()->SetTitleFont(120);
-    data->GetEtaBins()->SetTitle("h");
-    data->GetPhiBins()->SetTitleFont(120);
-    data->GetPhiBins()->SetTitle("f");
-    data->IncDenyDestroy();
+    dataEMC->GetEtaBins()->SetTitleFont(120);
+    dataEMC->GetEtaBins()->SetTitle("h");
+    dataEMC->GetPhiBins()->SetTitleFont(120);
+    dataEMC->GetPhiBins()->SetTitle("f");
+    dataEMC->IncDenyDestroy();
 
+    TEveCaloDataHist* dataPHOS = new TEveCaloDataHist();
+    AliEveEventManager *manager = AliEveEventManager::Instance();
+    cout<<"\n\n adding 2d dataPHOS to event manager"<<endl;
+    manager->RegisterTransient(dataPHOS);
+    
+    dataPHOS->AddHistogram(fHistoPH);
+    dataPHOS->RefSliceInfo(0).Setup("PHCell:", 0, kYellow);
+    
+    //  dataPHOS->AddHistogram(fHistoneg);
+    //  dataPHOS->RefSliceInfo(3).Setup("NegCg:", 0, kBlue);
+    //  dataPHOS->AddHistogram(fHistopos);
+    //  dataPHOS->RefSliceInfo(4).Setup("PosCg:", 0, kRed);
+    
+    dataPHOS->GetEtaBins()->SetTitleFont(120);
+    dataPHOS->GetEtaBins()->SetTitle("h");
+    dataPHOS->GetPhiBins()->SetTitleFont(120);
+    dataPHOS->GetPhiBins()->SetTitle("f");
+    dataPHOS->IncDenyDestroy();
+    
+    
     // Plotting the lego histogram in a new tab
 //    CreateHistoLego(data); // this function breaks Event Display closing
 
     // Plotting the 3D histogram and projections RPhi and RhoZ
-    TEveCalo3D *calo3d = Create3DView(data);
-    
+    TEveCalo3D *calo3d = Create3DView(dataEMC, 1);
+    TEveCalo3D *calo3d = Create3DView(dataPHOS, 2);
     //-----------------
     // Send to EVE
     //-----------------
@@ -398,8 +419,12 @@ void AnalyzeClusters(AliESDEvent * esd)
       
         // Plot clusters or cells in clusters
         //
-        if(fCaloCluster->IsEMCAL()) FillEMCALClusters(absIdEMaxCell);
-        else                        FillPHOSClusters (absIdEMaxCell);
+        if(fCaloCluster->IsEMCAL()){
+          FillEMCALClusters(absIdEMaxCell);
+        } else {
+          FillPHOSClusters (absIdEMaxCell);
+        }
+          
     } // cluster loop
 }
 
@@ -455,6 +480,8 @@ void FillEMCALClusters(Int_t absIdEMaxCell)
             // 2d projection view
             
             fGeomEM->EtaPhiFromIndex(id,eta,phi);
+          
+            if (amp > maxEEMCAL) maxEEMCAL = amp;
             
             if ( debug > 1 ) 
               printf("\t CaloCell %d, ID %d, energy %2.2f,eta %2.2f, phi %2.2f\n",
@@ -499,8 +526,7 @@ void FillEMCALClusters(Int_t absIdEMaxCell)
             if ( debug > 1 ) 
               printf("\t , SM %d (Nodes %d),  iEta %d,  iPhi %d, x %3.3f, y %3.3f, z %3.3f \n",
                      iSupMod,fNodeEM->GetNdaughters(),ieta,iphi,x,y,z);
-
-          
+              
             // It should not happen, but in case the OCDB file is not the
             // correct one.
             if(iSupMod >= fNodeEM->GetNdaughters()) continue;
@@ -520,6 +546,7 @@ void FillEMCALClusters(Int_t absIdEMaxCell)
         //
         fHistoEM->Fill(fClusterMomentum.Eta(),GetPhi(fClusterMomentum.Phi()),fClusterMomentum.E());
         
+        if (fClusterMomentum.E() > maxEEMCAL) maxEEMCAL = fClusterMomentum.E();
         // 3d view
         //
         fGeomEM->GetCellIndex(absIdEMaxCell,iSupMod,iTower,iIphi,iIeta); // needed to get iSupMod
@@ -577,6 +604,7 @@ void FillPHOSClusters(Int_t absIdEMaxCell)
             amp = fCellsPH->GetCellAmplitude(id); // GeV
             //if(amp < 0.1) continue ;
             
+            if (amp > maxEPHOS) maxEPHOS = amp;
             
             TVector3 xyz;
             Int_t relId[4], module;
@@ -618,7 +646,7 @@ void FillPHOSClusters(Int_t absIdEMaxCell)
         // 2d view
         //
         fHistoPH->Fill(fClusterMomentum.Eta(),GetPhi(fClusterMomentum.Phi()),fClusterMomentum.E());
-        
+        if (fClusterMomentum.E() > maxEPHOS) maxEPHOS = fClusterMomentum.E();
         // 3d view
         //
         fGeomPH->AbsToRelNumbering(absIdEMaxCell,relId);
@@ -872,10 +900,7 @@ void SetUpEMCALGeometry(AliESDEvent * esd)
         fGeomEM  = AliEMCALGeometry::GetInstance();
     
     if (!fGeomEM)
-    {
-        printf("xxx Set EMCal default geo as Run2 xxx\n");
-        fGeomEM  = AliEMCALGeometry::GetInstance("EMCAL_COMPLETE12SMV1_DCAL_8SM");
-    }
+        fGeomEM  = AliEMCALGeometry::GetInstanceFromRunNumber(esd->GetRunNumber());
     
     Bool_t ok = kFALSE;
     SetEMCALMatrices(esd,ok); // Do it outside also if we could not set them here.
@@ -992,7 +1017,6 @@ void SetEMCALMatrices(AliESDEvent * esd, Bool_t & ok)
   for(Int_t mod = 0; mod < fGeomEM->GetNumberOfSuperModules(); mod++) 
     printf("Matrix in geometry: imod %d, %p\n",mod,fGeomEM->GetMatrixForSuperModuleFromArray(mod));
 
-  
 }
 
 //______________________________________________________________________________
@@ -1061,7 +1085,7 @@ void SetUpEMCALQuads()
     // Define energy range for the color palette
     //
     Int_t maxEMCalE = 10000; // MeV
-    if(plotcells[1]) maxEMCalE = 2000; // MeV
+    if(plotcells[1]) maxEMCalE = 4000; // MeV
     
     Int_t minEMCalE = Int_t(energyCut[1]*1000); // MeV
     if(plotcells[1]) minEMCalE = 100; // MeV
@@ -1133,7 +1157,7 @@ void SetUpPHOSQuads()
     
     // Define energy range for the color palette
     Int_t maxPHOSE = 10000; // MeV
-    if(plotcells[0]) maxPHOSE = 2000; // MeV
+    if(plotcells[0]) maxPHOSE = 4000; // MeV
     
     Int_t minPHOSE = Int_t(energyCut[0]*1000); // MeV
     if(plotcells[1]) minPHOSE = 100; // MeV
@@ -1254,7 +1278,7 @@ TEveCaloLego* CreateHistoLego(TEveCaloData* data)
 }
 
 //______________________________________________________________________________
-TEveCalo3D* Create3DView(TEveCaloData* data)
+TEveCalo3D* Create3DView(TEveCaloData* data, Int_t calo)
 {  
     // initialization
     if ( g_histo2d_s2 == 0 ) 
@@ -1270,9 +1294,22 @@ TEveCalo3D* Create3DView(TEveCaloData* data)
     cout<<"Adding 3d view to event manager"<<endl;
     manager->RegisterTransient(calo3d);
     
-    calo3d->SetBarrelRadius(600);
+    Int_t maxHeight = 300;
+    if (calo == 1){
+      calo3d->SetBarrelRadius(450);
+      cout << "max energy EMC = " << maxEEMCAL << endl;
+      if (maxEEMCAL > 0) maxHeight = (Int_t)(maxEEMCAL*100/4);
+      maxEEMCAL = 0;
+    } else if (calo == 2)  {
+      calo3d->SetBarrelRadius(530);
+      cout << "max energy PHOS = " << maxEPHOS << endl;
+      if (maxEPHOS > 0) maxHeight = (Int_t)(maxEPHOS*100/4);
+      maxEPHOS = 0;
+    }  
     calo3d->SetEndCapPos(550);
-    calo3d->SetMaxTowerH(300);
+    calo3d->SetMaxTowerH(maxHeight);
+    cout << "maximum height of towers: " << calo3d->GetMaxTowerH() << endl;
+    
     calo3d->SetFrameTransparency(100);
     g_histo2d_s2->AddElement(calo3d);
     

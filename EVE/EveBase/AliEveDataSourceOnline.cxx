@@ -39,13 +39,13 @@ fStorageManager(storageManager),
 fEventManager(0)
 {
     fEventManager = AliEveEventManager::Instance();
-    
+
     StorageManagerDown(); // turn SM off by default
-    
+
     // start threads:
     fEventListenerThread = new TThread("fEventListenerThread",DispatchEventListener,(void*)this);
     fEventListenerThread->Run();
-    
+
     if(fStorageManager){
         fStorageManagerWatcherThread = new TThread("fStorageManagerWatcherThread",DispatchStorageManagerWatcher,(void*)this);
         fStorageManagerWatcherThread->Run();
@@ -75,20 +75,20 @@ void AliEveDataSourceOnline::GetNextEvent()
 {
     AliZMQManager *eventManager = AliZMQManager::GetInstance();
     eventManager->CreateSocket(EVENTS_SERVER_SUB);
-    
+
     fCurrentEvent[0]=0;
     fCurrentEvent[1]=0;
-    
+
     AliESDEvent *tmpEvent;
-    
+
     cout<<"Starting subscriber's loop"<<endl;
     int receiveStatus;
-    
+
     while(1)
     {
         cout<<"Waiting for event from online reconstruction..."<<endl;
         receiveStatus = eventManager->Get(tmpEvent,EVENTS_SERVER_SUB);
-        
+
         if(receiveStatus == 0){ // timeout
             continue;
         }
@@ -108,19 +108,19 @@ void AliEveDataSourceOnline::GetNextEvent()
                     TEnv settings;
                     AliEveInit::GetConfig(&settings);
                     const char *requiredTriggerClass = settings.GetValue("trigger.class.filter", "");
-                    
+
                     bool matchesTriggerClass = false;
-                    
-                    
+
+
                     if(strcmp(requiredTriggerClass,"none")!=0)
                     {
                         // check if required trigger class fired
                         ULong64_t mask = 1;
                         ULong64_t triggerMask = tmpEvent->GetTriggerMask();
                         ULong64_t triggerMaskNext50 = tmpEvent->GetTriggerMaskNext50();
-                        
+
                         mask=1;
-                        
+
                         for(int i=0;i<50;i++)
                         {
                             if(mask & triggerMask)
@@ -147,7 +147,7 @@ void AliEveDataSourceOnline::GetNextEvent()
                     {
                         matchesTriggerClass = true;
                     }
-                    
+
                     if(matchesTriggerClass)
                     {
                         if(fEventInUse == 0){fWritingToEventIndex = 1;}
@@ -159,8 +159,8 @@ void AliEveDataSourceOnline::GetNextEvent()
                             fCurrentEvent[fWritingToEventIndex]=0;
                         }
                         fCurrentEvent[fWritingToEventIndex] = tmpEvent;
-                        
-                        
+
+
                         fIsNewEventAvaliable = true;
                     }
                     else
@@ -200,23 +200,23 @@ void AliEveDataSourceOnline::GetNextEvent()
 void AliEveDataSourceOnline::CheckStorageStatus()
 {
     if(!fStorageManager){return;}
-    
+
     AliEveConfigManager *configManager = AliEveConfigManager::Instance();
     configManager->ConnectEventManagerSignals();
-    
+
     AliZMQManager *eventManager = AliZMQManager::GetInstance();
     storageSockets socket = CLIENT_COMMUNICATION_REQ;
     eventManager->CreateSocket(socket);
-    
+
     struct clientRequestStruct *request = new struct clientRequestStruct;
     request->messageType = REQUEST_CONNECTION;
-    
+
     long response;
     int receiveStatus = 0;
     int sendStatus = 0;
-    
+
     StorageManagerDown();// assume that storage manager is down
-    
+
     while (1)
     {
         sendStatus = eventManager->Send(request,socket);
@@ -226,15 +226,15 @@ void AliEveDataSourceOnline::CheckStorageStatus()
         else if(sendStatus == -1){ // error, socket closed
             break;
         }
-        
+
         cout<<"EVENT DISPLAY -- message sent to SM"<<endl;
-        
+
         receiveStatus = eventManager->Get(&response,socket); // try to reveive response
         if(receiveStatus == 0) // timeout
         {
             cout<<"EVENT DISPLAY -- failed to receive message from SM, timeout"<<endl;
             eventManager->RecreateSocket(socket); // destroy and open socket again, to be able to send message (currently, as receive failed, socket is still in RECV state
-            
+
             if(!fStorageDown) // if requires change
             {
                 cout<<"EVENT DISPLAY -- storage DOWN"<<endl;
@@ -253,7 +253,7 @@ void AliEveDataSourceOnline::CheckStorageStatus()
         sleep(1);
         sendStatus=0;
     }
-    
+
     AliEveEventManager *manager = fEventManager;
     manager->Disconnect("StorageManagerOk");
     manager->Disconnect("StorageManagerDown");
@@ -262,40 +262,40 @@ void AliEveDataSourceOnline::CheckStorageStatus()
 void AliEveDataSourceOnline::GotoEvent(Int_t event)
 {
     cout<<"Go to event:"<<event<<endl;
-    
+
     if (fStorageDown && -1 == event)
     {
         NextEvent();
         return;
     }
-    
+
     if (fCurrentData.fESD)
     {
         // create new server request:
         struct serverRequestStruct *requestMessage = new struct serverRequestStruct;
-        
+
         // set request type:
         if (event == -1)      {requestMessage->messageType = REQUEST_GET_LAST_EVENT;}
         else  if (event == 0) {requestMessage->messageType = REQUEST_GET_FIRST_EVENT;}
         else  if (event == 1) {requestMessage->messageType = REQUEST_GET_PREV_EVENT;}
         else  if (event == 2) {requestMessage->messageType = REQUEST_GET_NEXT_EVENT;}
-        
+
         // set event struct:
         requestMessage->eventsRunNumber = fCurrentData.fESD->GetRunNumber();
         requestMessage->eventsEventNumber = fCurrentData.fESD->GetEventNumberInFile();
-        
+
         // create event manager:
         AliZMQManager *eventManager = AliZMQManager::GetInstance();
         AliESDEvent *resultEvent = NULL;
-        
+
 #if ROOT_VERSION_CODE < ROOT_VERSION(5,99,0)
         gCINTMutex->Lock();
 #endif
-        
+
         // send request and receive event:
         eventManager->Send(requestMessage,SERVER_COMMUNICATION_REQ);
         eventManager->Get(resultEvent,SERVER_COMMUNICATION_REQ);
-        
+
         if(resultEvent)
         {
             //            DestroyElements();
@@ -308,7 +308,7 @@ void AliEveDataSourceOnline::GotoEvent(Int_t event)
             if(event==1){cout<<"\n\nWARNING -- No previous event is avaliable.\n\n"<<endl;}
             if(event==2){cout<<"\n\nWARNING -- No next event is avaliable.\n\n"<<endl;}
         }
-        
+
 #if ROOT_VERSION_CODE < ROOT_VERSION(5,99,0)
         gCINTMutex->UnLock();
 #endif
@@ -327,7 +327,7 @@ void AliEveDataSourceOnline::GotoEvent(Int_t event)
 
         eventManager->Send(requestMessage,SERVER_COMMUNICATION_REQ);
         eventManager->Get(resultEvent,SERVER_COMMUNICATION_REQ);
-        
+
         if(resultEvent)
         {
             //            DestroyElements();
@@ -355,32 +355,32 @@ void AliEveDataSourceOnline::NextEvent()
     {
         fEventManager->DestroyTransients();
         fEventManager->DestroyElements();
-        
+
         if(fCurrentData.fESD->GetRunNumber() != fEventManager->GetCurrentRun()){
             fEventManager->ResetMagneticField();
             fEventManager->SetCurrentRun(fCurrentData.fESD->GetRunNumber());
         }
-        
+
         fEventManager->SetHasEvent(true);
         fEventManager->AfterNewEventLoaded();
         fEventManager->NewEventLoaded();
-        
+
         fHasEventFromStorageManager = false;
     }
     else if(fIsNewEventAvaliable)
     {
         fEventManager->DestroyTransients();
-        
+
         if(fWritingToEventIndex == 0) fEventInUse = 0;
         else if(fWritingToEventIndex == 1) fEventInUse = 1;
-        
+
         if(fCurrentEvent[fEventInUse])
         {
             if(fCurrentEvent[fEventInUse]->GetRunNumber() >= 0)
             {
                 fFailCounter=0;
                 cout<<"================ setting event to "<<fCurrentEvent[fEventInUse]->GetEventNumberInFile()<<"================"<<endl;
-                
+
                 StorageManagerDown(); // block SM while event is being loaded
                 fEventManager->DestroyElements();
                 if(fCurrentEvent[fEventInUse]->GetRunNumber() != fEventManager->GetCurrentRun()){
@@ -388,10 +388,10 @@ void AliEveDataSourceOnline::NextEvent()
                     fEventManager->SetCurrentRun(fCurrentEvent[fEventInUse]->GetRunNumber());
                 }
                 fCurrentData.fESD = fCurrentEvent[fEventInUse];
-                
+
                 fEventManager->SetHasEvent(true);
                 fEventManager->AfterNewEventLoaded();
-                
+
                 if (fEventManager->GetAutoLoad()) {
                     fEventManager->StartAutoLoadTimer();
                 }
@@ -420,18 +420,18 @@ void AliEveDataSourceOnline::NextEvent()
 void AliEveDataSourceOnline::MarkCurrentEvent()
 {
     if(!fStorageManager){return;}
-    
+
     struct serverRequestStruct *requestMessage = new struct serverRequestStruct;
     requestMessage->eventsRunNumber = fCurrentData.fESD->GetRunNumber();
     requestMessage->eventsEventNumber = fCurrentData.fESD->GetEventNumberInFile();
     requestMessage->messageType = REQUEST_MARK_EVENT;
-    
+
     AliZMQManager *eventManager = AliZMQManager::GetInstance();
-    
+
     eventManager->Send(requestMessage,SERVER_COMMUNICATION_REQ);
     bool response;
     eventManager->Get(&response,SERVER_COMMUNICATION_REQ);
-    
+
     if(response)
     {
         //fStatusLabel->SetText("Event marked");
@@ -489,5 +489,5 @@ Bool_t AliEveDataSourceOnline::ReceivePromptRecoParameters(Int_t runNo)
   cdb->SetSpecificStorage("GRP/GRP/Data",localGRPstorage.Data());
   cdb->SetRun(runNo);
   cdb->Print();
-  return kTRUE;    
+  return kTRUE;
 }

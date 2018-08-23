@@ -38,6 +38,7 @@
 
 #include <vector>
 #include <string>
+#include <sstream>
 #include "Riostream.h"
 
 //______________________________________________________________________________
@@ -48,6 +49,8 @@ using namespace std;
 
 ClassImp(AliEveEventManagerEditor)
 
+AliEveEventManagerWindow* AliEveEventManagerWindow::fInstance = nullptr;
+
 //______________________________________________________________________________
 AliEveEventManagerEditor::AliEveEventManagerEditor(const TGWindow *p, Int_t width, Int_t height,
                                                    UInt_t options, Pixel_t back) :
@@ -57,9 +60,9 @@ fDumpEventInfo(0),
 fEventInfo(0)
 {
     // Constructor.
-    
+
     MakeTitle("AliEveEventManager");
-    
+
     {
         TGHorizontalFrame* f = new TGHorizontalFrame(this);
         fDumpEventInfo = new TGTextButton(f, "Dump Event Info");
@@ -73,13 +76,13 @@ fEventInfo(0)
     }
     {
         TGVerticalFrame* f = new TGVerticalFrame(this);
-        
+
         TGLabel *eventInfoLabel = new TGLabel(f, "Event Information:");
         f->AddFrame(eventInfoLabel, new TGLayoutHints(kLHintsNormal, 0,0,6,2));
-        
+
         fEventInfo = new TGTextView(f, 200, 300);
         f->AddFrame(fEventInfo, new TGLayoutHints(kLHintsNormal | kLHintsExpandX));
-        
+
         AddFrame(f, new TGLayoutHints(kLHintsNormal | kLHintsExpandX));
     }
 }
@@ -90,9 +93,9 @@ fEventInfo(0)
 void AliEveEventManagerEditor::SetModel(TObject* obj)
 {
     // Set model object.
-    
+
     fM = static_cast<AliEveEventManager*>(obj);
-    
+
     fEventInfo->LoadBuffer(GetEventInfoVertical());
 }
 
@@ -103,12 +106,12 @@ void AliEveEventManagerEditor::DumpEventInfo()
 {
     // Dump event-info into event_info.txt.
     // The info is appended into the file.
-    
+
     ofstream f("event_info.txt", ios::out | ios::app);
-    
+
     f << "================================================================================\n\n";
     f << GetEventInfoHorizontal() << std::endl << std::endl;
-    
+
     f.close();
 }
 
@@ -145,27 +148,28 @@ fTrigSel      (0),
 fEventInfo    (0)
 {
     // Constructor.
-    
+    fInstance = this;
+
     const TString cls("AliEveEventManagerWindow");
     TGTextButton *b = 0;
     {
         Int_t width = 50;
-        
+
         TGHorizontalFrame* f = new TGHorizontalFrame(this);
         AddFrame(f, new TGLayoutHints(kLHintsExpandX, 0,0,2,2));
-        
+
         fFirstEvent = b = MkTxtButton(f, "First", width);
         b->Connect("Clicked()", cls, this, "DoFirstEvent()");
         fPrevEvent = b = MkTxtButton(f, "Prev", width);
         b->Connect("Clicked()", cls, this, "DoPrevEvent()");
-        
+
         fEventId = new TGNumberEntry(f, 0, 5, -1,TGNumberFormat::kNESInteger, TGNumberFormat::kNEANonNegative,
                                      TGNumberFormat::kNELLimitMinMax, 0, 10000);
         f->AddFrame(fEventId, new TGLayoutHints(kLHintsNormal, 10, 5, 0, 0));
         fEventId->Connect("ValueSet(Long_t)", cls, this, "DoSetEvent()");
         fInfoLabel = new TGLabel(f);
         f->AddFrame(fInfoLabel, new TGLayoutHints(kLHintsNormal, 5, 10, 4, 0));
-        
+
         fNextEvent = b = MkTxtButton(f, "Next", width);
         b->Connect("Clicked()", cls, this, "DoNextEvent()");
         fLastEvent = b = MkTxtButton(f, "Last", width);
@@ -175,19 +179,19 @@ fEventInfo    (0)
 
         fScreenshot = b = MkTxtButton(f, "Screenshot", 2*width);
         b->Connect("Clicked()", cls, this, "DoScreenshot()");
-        
+
         MkLabel(f, "||", 0, 8, 8);
-        
+
         fRefresh = b = MkTxtButton(f, "Refresh", width + 8);
         b->Connect("Clicked()",cls, this, "DoRefresh()");
-        
+
         MkLabel(f, "||", 0, 8, 8);
-        
+
         fAutoLoad = new TGCheckButton(f, "Autoload");
         f->AddFrame(fAutoLoad, new TGLayoutHints(kLHintsLeft, 0, 4, 3, 0));
         fAutoLoad->SetToolTipText("Automatic event loading.");
         fAutoLoad->Connect("Toggled(Bool_t)", cls, this, "DoSetAutoLoad()");
-        
+
         fAutoLoadTime = new TEveGValuator(f, "Time: ", 110, 0);
         f->AddFrame(fAutoLoadTime);
         fAutoLoadTime->SetShowSlider(kFALSE);
@@ -196,74 +200,82 @@ fEventInfo    (0)
         fAutoLoadTime->SetLimits(0, 1000);
         fAutoLoadTime->SetToolTip("Automatic event loading time in seconds.");
         fAutoLoadTime->Connect("ValueSet(Double_t)", cls, this, "DoSetAutoLoadTime()");
-        
+
         fTrigSel = new TGComboBox(f);
-        fTrigSel->Resize(4*width,b->GetDefaultHeight());
-        fTrigSel->AddEntry("No trigger selection",-1);
-        fTrigSel->Select(-1,kFALSE);
+        fTrigSel->Resize(5*width,b->GetDefaultHeight());
+        fTrigSel->AddEntry("No trigger selection",0);
+        fTrigSel->Select(0,kFALSE);
+//         fTrigSel->Resize(4*width,b->GetDefaultHeight());
+//         fTrigSel->AddEntry("No trigger selection",-1);
+//         fTrigSel->Select(-1,kFALSE);
         f->AddFrame(fTrigSel, new TGLayoutHints(kLHintsNormal, 10, 5, 0, 0));
         fTrigSel->Connect("Selected(char*)", cls, this, "DoSetTrigSel()");
         if(storageManager){
             fStorageStatus = MkLabel(f,"Storage: Waiting",0,8,8);
-        }
-        else{
+        } else {
             fStorageStatus = MkLabel(f,"",0,8,8);
         }
-        
+
         fReloadOffline = new TGTextButton(f, "Reload");
         fReloadOffline->Connect("Clicked()", cls, this, "DoReloadOffline()");
         fOfflineRunNumber = new TGNumberEntry(f);
         f->AddFrame(fOfflineRunNumber,new TGLayoutHints(kLHintsNormal,10,5,0,0));
         f->AddFrame(fReloadOffline,new TGLayoutHints(kLHintsNormal,10,5,0,0));
 
-        
         fDataSourceGroup = new TGHButtonGroup(f, "Data Source");
 //        horizontal->SetTitlePos(TGGroupFrame::kCenter);
         fSwitchToHLT     = new TGRadioButton(fDataSourceGroup, "HLT",AliEveEventManager::kSourceHLT);
         fSwitchToOnline  = new TGRadioButton(fDataSourceGroup, "Online",AliEveEventManager::kSourceOnline);
         fSwitchToOffline = new TGRadioButton(fDataSourceGroup, "Offline",AliEveEventManager::kSourceOffline);
-        
+
         fDataSourceGroup->SetButton(defaultDataSource);
         fDataSourceGroup->Connect("Pressed(Int_t)", cls, this,"DoSwitchDataSource(AliEveEventManager::EDataSource)");
 #ifndef ZMQ
         fSwitchToHLT->SetEnabled(false);
         fSwitchToOnline->SetEnabled(false);
 #endif
-        
+
         f->AddFrame(fDataSourceGroup, new TGLayoutHints(kLHintsNormal));
-        
-            }
-    
+
+    }
+
     fEventInfo = new TGTextView(this, 400, 600);
     AddFrame(fEventInfo, new TGLayoutHints(kLHintsNormal | kLHintsExpandX | kLHintsExpandY));
-    
+
     fM->Connect("NewEventLoaded()", cls, this, "Update(=1)");
     fM->Connect("NoEventLoaded()", cls, this, "Update(=0)");
-    
-    if(storageManager) // if SM is enabled in general
-    {
+
+    if(storageManager){ // if SM is enabled in general
         fM->Connect("StorageManagerOk()",cls,this,"StorageManagerChangedState(=1)");
         fM->Connect("StorageManagerDown()",cls,this,"StorageManagerChangedState(=0)");
-    }
-    else
-    {
+    } else {
         StorageManagerChangedState(0);
     }
-        
+
     SetCleanup(kDeepCleanup);
     Layout();
     MapSubwindows();
     MapWindow();
+    DoSetTrigSel();
 }
 
 //______________________________________________________________________________
 AliEveEventManagerWindow::~AliEveEventManagerWindow()
 {
     // Destructor.
-    
+
     fM->Disconnect("NewEventLoaded()", this);
 }
 
+AliEveEventManagerWindow* AliEveEventManagerWindow::GetInstance()
+{
+  return fInstance;
+}
+
+void AliEveEventManagerWindow::SetCurrentDataSource(AliEveEventManager::EDataSource defaultDataSource)
+{
+  fDataSourceGroup->SetButton(defaultDataSource);
+}
 //______________________________________________________________________________
 void AliEveEventManagerWindow::DoFirstEvent()
 {
@@ -283,9 +295,9 @@ void AliEveEventManagerWindow::DoPrevEvent()
 //    else {
         AliEveDataSource *dataSource = fM->GetCurrentDataSource();
         dataSource->GotoEvent((Int_t) fEventId->GetNumber()-1);
-        
+
 //    }
-    
+
 }
 
 //______________________________________________________________________________
@@ -331,11 +343,11 @@ void AliEveEventManagerWindow::DoReloadOffline()
 {
     TEnv settings;
     AliEveInit::GetConfig(&settings);
-    
+
     const char* path = Form("%s%ld",settings.GetValue("offline.base.path",""),fOfflineRunNumber->GetIntNumber());
-    
+
     cout<<"Changing path to:"<<path<<endl;
-    
+
     AliEveDataSourceOffline *dataSource = (AliEveDataSourceOffline*)fM->GetDataSourceOffline();
     dataSource->SetFilesPath(path);
     fM->ChangeDataSource(AliEveEventManager::kSourceOffline);
@@ -357,89 +369,82 @@ void AliEveEventManagerWindow::DoRefresh()
     // Refresh event status.
     TEnv settings;
     AliEveInit::GetConfig(&settings);
+    AliEveMultiView::Instance()->DestroyAllGeometries();
+
+    AliEveInit::SetupBackground();
+
     AliEveMultiView *mv = AliEveMultiView::Instance();
     AliEveGeomGentle *geomGentle = new AliEveGeomGentle();
-    
-    mv->DestroyAllGeometries();
-    
+
     vector<string> detectorsList;
     string geomPath = settings.GetValue("simple.geom.path","${ALICE_ROOT}/EVE/resources/geometry/run2/");
     string alirootBasePath = gSystem->Getenv("ALICE_ROOT");
     size_t alirootPos = geomPath.find("${ALICE_ROOT}");
-    
-    if(alirootPos != string::npos){
-        geomPath.replace(alirootPos,alirootPos+13,alirootBasePath);
-    }
-    
-    TSystemDirectory dir(geomPath.c_str(),geomPath.c_str());
-    TList *files = dir.GetListOfFiles();
-    
-    if (files)
-    {
-        TRegexp e("simple_geom_[A-Z,0-9][A-Z,0-9][A-Z,0-9].root");
-        TRegexp e2("[A-Z,0-9][A-Z,0-9][A-Z,0-9]");
-        
-        TSystemFile *file;
-        TString fname;
-        TIter next(files);
-        
-        while ((file=(TSystemFile*)next()))
-        {
-            fname = file->GetName();
-            if(fname.Contains(e))
-            {
-                TString detName = fname(e2);
-                detName.Resize(3);
-                detectorsList.push_back(detName.Data());
-            }
-        }
-    }
-    else{
-        cout<<"\n\nAliEveInit -- geometry files not found!!!"<<endl;
-        cout<<"Searched directory was:"<<endl;
-        dir.Print();
-    }
-    
-    for(int i=0;i<detectorsList.size();i++)
-    {
-        if(settings.GetValue(Form("%s.draw",detectorsList[i].c_str()), true))
-        {
-            if(detectorsList[i]=="TPC" || detectorsList[i]=="MCH")
-            {
-                // don't load MUON and standard TPC to R-Phi view
-                mv->InitSimpleGeom(geomGentle->GetSimpleGeom((char*)detectorsList[i].c_str()),true,false);
-            }
-            else if(detectorsList[i]=="RPH")
-            {
-                // special TPC geom from R-Phi view
-                mv->InitSimpleGeom(geomGentle->GetSimpleGeom("RPH"),false,true,false);
-            }
-            else
-            {
-                mv->InitSimpleGeom(geomGentle->GetSimpleGeom((char*)detectorsList[i].c_str()));
-            }
-        }
+
+    if(alirootPos != string::npos) {
+      geomPath.replace(alirootPos,alirootPos+13,alirootBasePath);
     }
 
-    
+    TSystemDirectory dir(geomPath.c_str(),geomPath.c_str());
+    TList *files = dir.GetListOfFiles();
+
+    if (files) {
+      TRegexp e("simple_geom_[A-Z,0-9][A-Z,0-9][A-Z,0-9].root");
+      TRegexp e2("[A-Z,0-9][A-Z,0-9][A-Z,0-9]");
+
+      TSystemFile *file;
+      TString fname;
+      TIter next(files);
+
+      while ((file=(TSystemFile*)next())) {
+        fname = file->GetName();
+        if(fname.Contains(e))
+        {
+          TString detName = fname(e2);
+          detName.Resize(3);
+          detectorsList.push_back(detName.Data());
+        }
+      }
+    } else {
+      cout<<"\n\nAliEveInit -- geometry files not found!!!"<<endl;
+      cout<<"Searched directory was:"<<endl;
+      dir.Print();
+    }
+
+    for(int i=0;i<detectorsList.size();i++) {
+      if(settings.GetValue(Form("%s.draw",detectorsList[i].c_str()), true)) {
+        if(detectorsList[i]=="TPC" || detectorsList[i]=="MCH") {
+          // don't load MUON and standard TPC to R-Phi view
+          mv->InitSimpleGeom(geomGentle->GetSimpleGeom((char*)detectorsList[i].c_str()),true,false);
+        } else if(detectorsList[i]=="RPH") {
+          // special TPC geom from R-Phi view
+          mv->InitSimpleGeom(geomGentle->GetSimpleGeom("RPH"),false,true,false);
+        } else {
+          cout << (char*)detectorsList[i].c_str() << endl;
+          mv->InitSimpleGeom(geomGentle->GetSimpleGeom((char*)detectorsList[i].c_str()));
+        }
+      }
+    }
+
     AliEveInit::AddMacros();
-    
+    AliEveInit::SetupCamera();
+
     TEveScene *rPhiScene = AliEveMultiView::Instance()->GetRPhiScene();
     TEveScene *rhoZScene = AliEveMultiView::Instance()->GetRhoZScene();
-    
+
     TEveElement::List_i rPhiElement = rPhiScene->BeginChildren();
     TEveElement::List_i rhoZElement = rhoZScene->BeginChildren();
-    
+
     TEveProjectionAxes* rPhiAxes = ((TEveProjectionAxes*)*rPhiElement);
     TEveProjectionAxes* rhoZAxes = ((TEveProjectionAxes*)*rhoZElement);
-    
-    rPhiAxes->SetRnrSelf(settings.GetValue("axes.show",false));
-    rhoZAxes->SetRnrSelf(settings.GetValue("axes.show",false));
-    
+
+    if(rPhiAxes) rPhiAxes->SetRnrSelf(settings.GetValue("axes.show",false));
+    if(rhoZAxes) rhoZAxes->SetRnrSelf(settings.GetValue("axes.show",false));
+
     gEve->FullRedraw3D();
     gSystem->ProcessEvents();
     gEve->Redraw3D();
-    
+
     Int_t ev = fM->GetEventId();
     AliEveDataSource *currentDataSource = fM->GetCurrentDataSource();
     currentDataSource->GotoEvent(ev);
@@ -449,7 +454,7 @@ void AliEveEventManagerWindow::DoRefresh()
 void AliEveEventManagerWindow::DoSetAutoLoad()
 {
     // Set the auto-load flag
-    
+
     fM->SetAutoLoad(fAutoLoad->IsOn());
 //    Update(fM->NewEventAvailable());
 }
@@ -458,17 +463,71 @@ void AliEveEventManagerWindow::DoSetAutoLoad()
 void AliEveEventManagerWindow::DoSetAutoLoadTime()
 {
     // Set the auto-load time in seconds
-    
+
     fM->SetAutoLoadTime(fAutoLoadTime->GetValue());
 }
 
 //______________________________________________________________________________
 void AliEveEventManagerWindow::DoSetTrigSel()
 {
-    // Set the trigger selection
-    
-    fM->SetTrigSel(fTrigSel->GetSelectedEntry()->EntryId());
+  cout<<"setting selected trigger:"<<fTrigSel->GetSelectedEntry()->GetTitle()<<endl;
+  fM->SetSelectedTrigger(fTrigSel->GetSelectedEntry()->GetTitle());
 }
+
+void AliEveEventManagerWindow::ResetTriggerSelection()
+{
+  fTrigSel->Select(0,kFALSE);
+  fTrigSel->SetEnabled();
+  DoSetTrigSel();
+  Layout();
+}
+
+
+void AliEveEventManagerWindow::SetActiveTriggerClasses()
+{
+  string s = fM->GetESD()->GetESDRun()->GetActiveTriggerClasses().Data();
+  stringstream ss(s);
+  istream_iterator<string> begin(ss);
+  istream_iterator<string> end;
+  vector<string> vstrings(begin, end);
+  vector<int>counters(vstrings.size());
+  for (int i = 0; i < vstrings.size(); i++){
+    counters.at(i) = 0;
+  }
+  cout << fM->GetESDTree()->GetEntries() << endl;
+
+  for (int event = 0; event< fM->GetESDTree()->GetEntries(); event++ ){
+    fM->DestroyTransients();
+    fM->GetESDTree()->GetEntry(event);
+    TString currentTrigg = fM->GetESD()->GetFiredTriggerClasses();
+    //       cout << currentTrigg.Data() << endl;
+    for (int trigg =0; trigg < vstrings.size(); trigg++ ){
+      if (currentTrigg.Contains(vstrings.at(trigg))){
+        counters.at(trigg)++;
+      }
+    }
+  }
+  fM->GetESDTree()->GetEntry(0);
+
+  for (int trigg =0; trigg < vstrings.size(); trigg++ ){
+    cout << vstrings.at(trigg) << "\t" << counters.at(trigg) << endl;
+  }
+
+  //     copy(vstrings.begin(), vstrings.end(), ostream_iterator<string>(cout, "\n"));
+
+  fTrigSel->RemoveAll();
+  fTrigSel->AddEntry("No trigger selection",0);
+  fTrigSel->Select(0,kFALSE);
+
+  for(int i=0;i<vstrings.size();i++)
+  {
+    if(counters.at(i) > 0) fTrigSel->AddEntry(vstrings[i].c_str(),i);
+  }
+  fTrigSel->SetEnabled();
+  DoSetTrigSel();
+  Layout();
+}
+
 
 void AliEveEventManagerWindow::DoSwitchDataSource(AliEveEventManager::EDataSource source)
 {
@@ -479,37 +538,37 @@ void AliEveEventManagerWindow::DoSwitchDataSource(AliEveEventManager::EDataSourc
 void AliEveEventManagerWindow::Update(int state)
 {
     Bool_t autoLoad = fM->GetAutoLoad();
-    
+
     if (state==1)
     {
 //        fRefresh->SetEnabled(!autoLoad);
-        
+
         fEventId->SetNumber(fM->GetEventId());
         fEventId->SetState(kTRUE);
-        
+
         fAutoLoad->SetState(fM->GetAutoLoad() ? kButtonDown : kButtonUp);
         fAutoLoadTime->SetValue(fM->GetAutoLoadTime());
-        
+
         // Loop over active trigger classes
-        if (fM->GetESD())// && !fM->IsOnlineMode())
-        {
-            for(Int_t iTrig = 0; iTrig < AliESDRun::kNTriggerClasses; iTrig++)
-            {
-                TString trigName = fM->GetESD()->GetESDRun()->GetTriggerClass(iTrig);
-                if (trigName.IsNull())
-                {
-                    if (fTrigSel->GetListBox()->GetEntry(iTrig)) {
-                        if (fTrigSel->GetSelected() == iTrig) fTrigSel->Select(-1);
-                        fTrigSel->RemoveEntry(iTrig);
-                    }
-                    continue;
-                }
-                if (!fTrigSel->FindEntry(trigName.Data())){
-                    fTrigSel->AddEntry(trigName.Data(),iTrig);
-                }
-            }
-        }
-        fTrigSel->SetEnabled(autoLoad);
+//         if (fM->GetESD())// && !fM->IsOnlineMode())
+//         {
+//             for(Int_t iTrig = 0; iTrig < AliESDRun::kNTriggerClasses; iTrig++)
+//             {
+//                 TString trigName = fM->GetESD()->GetESDRun()->GetTriggerClass(iTrig);
+//                 if (trigName.IsNull())
+//                 {
+//                     if (fTrigSel->GetListBox()->GetEntry(iTrig)) {
+//                         if (fTrigSel->GetSelected() == iTrig) fTrigSel->Select(-1);
+//                         fTrigSel->RemoveEntry(iTrig);
+//                     }
+//                     continue;
+//                 }
+//                 if (!fTrigSel->FindEntry(trigName.Data())){
+//                     fTrigSel->AddEntry(trigName.Data(),iTrig);
+//                 }
+//             }
+//         }
+//         fTrigSel->SetEnabled(autoLoad);
         Layout();
     }
 }
@@ -519,10 +578,10 @@ void AliEveEventManagerWindow::StorageManagerChangedState(int state)
     return;
 #ifdef ZMQ
 //    if (!fM->IsOnlineMode())return;
-    
+
     Bool_t autoLoad = fM->GetAutoLoad();
     AliStorageAdministratorPanelListEvents* listEventsTab = AliStorageAdministratorPanelListEvents::GetInstance();
-    
+
     if (state == 0)// SM off
     {
         fMarkEvent->SetEnabled(kFALSE);
@@ -557,7 +616,7 @@ TGTextButton* AliEveEventManagerWindow::MkTxtButton(TGCompositeFrame* p,
 {
     // Create a standard button.
     // If width is not zero, the fixed-width flag is set.
-    
+
     TGTextButton* b = new TGTextButton(p, txt);
     if (width > 0) {
         b->SetWidth(width);
@@ -574,7 +633,7 @@ TGLabel* AliEveEventManagerWindow::MkLabel(TGCompositeFrame* p,
 {
     // Create a standard button.
     // If width is not zero, the fixed-width flag is set.
-    
+
     TGLabel* l = new TGLabel(p, txt);
     if (width > 0) {
         l->SetWidth(width);
@@ -587,9 +646,9 @@ TGLabel* AliEveEventManagerWindow::MkLabel(TGCompositeFrame* p,
 TString AliEveEventManagerEditor::GetEventInfoHorizontal() const
 {
     // Dumps the event-header contents in vertical formatting.
-    
+
     TString rawInfo, esdInfo;
-    
+
     if (!AliEveEventManager::AssertRawReader())
     {
         rawInfo = "No raw-data event info is available!\n";
@@ -606,7 +665,7 @@ TString AliEveEventManagerEditor::GetEventInfoHorizontal() const
                      *(AliEveEventManager::AssertRawReader())->GetDetectorPattern(),AliDAQ::ListOfTriggeredDetectors(*(AliEveEventManager::AssertRawReader())->GetDetectorPattern()),
                      attr[0],attr[1],attr[2], ts.AsString("s"));
     }
-    
+
     if (!AliEveEventManager::AssertESD())
     {
         esdInfo = "No ESD event info is available!";
@@ -625,16 +684,16 @@ TString AliEveEventManagerEditor::GetEventInfoHorizontal() const
                      AliEveEventManager::AssertESD()->GetTriggerMask(),firedtrclasses.Data(),
                      AliEveEventManager::AssertESD()->GetEventNumberInFile(), ts.AsString("s"), AliEveEventManager::AssertESD()->GetMagneticField());
     }
-    
+
     return rawInfo + esdInfo;
 }
 
 TString AliEveEventManagerEditor::GetEventInfoVertical() const
 {
     // Dumps the event-header contents in vertical formatting.
-    
+
     TString rawInfo, esdInfo;
-    
+
     if (!AliEveEventManager::AssertRawReader())
     {
         rawInfo = "No raw-data event info is available!\n";
@@ -650,7 +709,7 @@ TString AliEveEventManagerEditor::GetEventInfoVertical() const
                      attr[0],attr[1],attr[2],
                      AliEveEventManager::AssertRawReader()->GetTimestamp());
     }
-    
+
     if (!AliEveEventManager::AssertESD())
     {
         esdInfo = "No ESD event info is available!\n";
@@ -668,6 +727,6 @@ TString AliEveEventManagerEditor::GetEventInfoVertical() const
                      AliEveEventManager::AssertESD()->GetEventNumberInFile(),
                      AliEveEventManager::AssertESD()->GetTimeStamp());
     }
-    
+
     return rawInfo + "\n" + esdInfo;
 }

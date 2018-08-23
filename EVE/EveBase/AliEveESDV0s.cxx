@@ -15,52 +15,56 @@
 
 #include <AliExternalTrackParam.h>
 #include <AliPID.h>
+#include <AliEveInit.h>
 #include <AliESDEvent.h>
-
 #include <AliESDtrack.h>
-
 #include <AliEveEventManager.h>
 
 
 AliEveV0List* AliEveESDV0s::Draw(Bool_t onFly)
-{    
+{
+
+    TEnv settings;
+    AliEveInit::GetConfig(&settings);
+
     AliESDEvent* esd = AliEveEventManager::Instance()->AssertESD();
     AliESDVertex* primVertex = (AliESDVertex*) esd->GetPrimaryVertex();
-    
-    AliEveV0List* cont = new AliEveV0List("ESD v0");
+
+    AliEveV0List* cont = new AliEveV0List("ESD v0s");
     cont->SetMainColor(3); // green
     TEveTrackPropagator* rnrStyleNeg = cont->GetPropagatorNeg();
     TEveTrackPropagator* rnrStylePos = cont->GetPropagatorPos();
     rnrStyleNeg->SetMagField( 0.1*esd->GetMagneticField() );
     rnrStylePos->SetMagField( 0.1*esd->GetMagneticField() );
-    
+
     gEve->AddElement(cont);
-    
+
     Int_t count = 0;
-    for (Int_t n=0; n<esd->GetNumberOfV0s(); ++n)
-    {
+    for (Int_t n=0; n<esd->GetNumberOfV0s(); ++n) {
         AliESDv0 *v0 = esd->GetV0(n);
-        
+
         if (v0->GetOnFlyStatus() != onFly) continue;
-        
+//         printf("  %2.2f %2.2f %3.2f %3.2f\n",v0->M(),v0->Pt(),v0->GetV0CosineOfPointingAngle(), v0->GetChi2V0());
+        if (v0->GetV0CosineOfPointingAngle() < settings.GetValue("vzero.CosPointingCut",-1)) continue;
+
         Int_t negInd = v0->GetNindex();
         Int_t posInd = v0->GetPindex();
         AliESDtrack* negTr = esd->GetTrack(negInd);
         AliESDtrack* posTr = esd->GetTrack(posInd);
-        
-        AliEveV0* myV0 = MakeV0(rnrStyleNeg,rnrStylePos, primVertex, negTr,posTr, v0, n);
-        if (myV0)
-        {
-            gEve->AddElement(myV0, cont);
-            ++count;
+        if (negTr && posTr){
+            AliEveV0* myV0 = MakeV0(rnrStyleNeg,rnrStylePos, primVertex, negTr,posTr, v0, n);
+            if (myV0){
+                gEve->AddElement(myV0, cont);
+                ++count;
+            }
         }
     }
-    
+
     cont->SetTitle("test");
-    
+
     cont->MakeV0s();
     gEve->Redraw3D();
-    
+
     return cont;
 }
 
@@ -68,7 +72,7 @@ AliEveV0List* AliEveESDV0s::Draw(Bool_t onFly)
 void AliEveESDV0s::InitRecTracks(TEveRecTrack& rt, const AliExternalTrackParam* tp)
 {
     Double_t      pbuf[3], vbuf[3];
-    
+
     rt.fSign = tp->GetSign();
     tp->GetXYZ(vbuf);     rt.fV.Set(vbuf);
     tp->GetPxPyPz(pbuf);  rt.fP.Set(pbuf);
@@ -81,34 +85,37 @@ AliEveV0* AliEveESDV0s::MakeV0(TEveTrackPropagator* rnrStyleNeg,TEveTrackPropaga
     TEveRecTrack  rcPos;
     TEveRecTrack  rcNeg;
     TEveRecV0     rcV0;
-    
+
+    TEnv settings;
+    AliEveInit::GetConfig(&settings);
+
     Double_t p[3];
     v0->GetNPxPyPz(p[0], p[1], p[2]);
     rcV0.fPPos.Set(p);
     v0->GetPPxPyPz(p[0], p[1], p[2]);
     rcV0.fPNeg.Set(p);
-    
+
     v0->GetPxPyPz(p[0], p[1], p[2]);
-    
+
     Double_t v[3];
-    
+
     v0->GetXYZ(v[0], v[1], v[2]);
     rcV0.fVCa.Set(v);
-    
+
     v0->GetParamN()->GetXYZ(v);  rcV0.fVNeg.Set(v);
     v0->GetParamP()->GetXYZ(v);  rcV0.fVPos.Set(v);
-    
+
     rcV0.fV0Birth.Set(primVtx->GetX(), primVtx->GetY(), primVtx->GetZ());
-    
+
     // Simulation data not directly available in AliESDv0
     //rcV0.fDLabel[0] = v0->GetNindex();
     //rcV0.fDLabel[1] = v0->GetPindex();
-    
+
     InitRecTracks(rcNeg, v0->GetParamN());
     rcNeg.fIndex = v0->GetNindex();
     InitRecTracks(rcPos, v0->GetParamP());
     rcPos.fIndex = v0->GetPindex();
-    
+
     AliEveV0* myV0 = new AliEveV0(&rcNeg, &rcPos, &rcV0, rnrStyleNeg,rnrStylePos);
     myV0->SetElementName(Form("ESDv0 %d", i));
     myV0->SetElementTitle(Form("OnFly: %d\nDCA %f",
@@ -117,24 +124,24 @@ AliEveV0* AliEveESDV0s::MakeV0(TEveTrackPropagator* rnrStyleNeg,TEveTrackPropaga
     myV0->SetESDIndex(i);
     myV0->SetOnFlyStatus(v0->GetOnFlyStatus());
     myV0->SetDaughterDCA(v0->GetDcaV0Daughters());
-    
+
     Double_t negProbability[10], posProbability[10];
     Double_t negP = 0.0, posP = 0.0;
     neg->GetESDpid(negProbability);
     pos->GetESDpid(posProbability);
     negP = neg->P();
     posP = pos->P();
-    
+
     // ****** Tentative particle type "concentrations"
-    Double_t c[5]={0.01, 0.01, 0.85, 0.10, 0.05};
+    Double_t c[5]={0.8, 0.01, 0.10, 0.10, 0.05};
     AliPID::SetPriors(c);
-    
+
     AliPID negPid(negProbability);
     AliPID posPid(posProbability);
-    
+
     Int_t   negMostProbPdg =  0;
     Int_t   posMostProbPdg =  0;
-    
+
     switch (negPid.GetMostProbable()){
         case 0:
             negMostProbPdg =   11; break;
@@ -149,7 +156,7 @@ AliEveV0* AliEveESDV0s::MakeV0(TEveTrackPropagator* rnrStyleNeg,TEveTrackPropaga
         default :
             negMostProbPdg =  211; break;
     }
-    
+
     switch (posPid.GetMostProbable()){
         case 0:
             posMostProbPdg =   11; break;
@@ -164,13 +171,14 @@ AliEveV0* AliEveESDV0s::MakeV0(TEveTrackPropagator* rnrStyleNeg,TEveTrackPropaga
         default :
             posMostProbPdg =  211; break;
     }
-    
+//     printf("  %d %d.\n",posMostProbPdg,negMostProbPdg);
+
     Float_t negMaxProbPid  = negPid.GetProbability(negPid.GetMostProbable());
     Float_t posMaxProbPid  = posPid.GetProbability(posPid.GetMostProbable());
-    
+
     myV0->SetMaxProbPdgPid(0,negMostProbPdg,negMaxProbPid);
     myV0->SetMaxProbPdgPid(1,posMostProbPdg,posMaxProbPid);
-    
+
     return myV0;
 }
 
@@ -178,9 +186,9 @@ AliEveV0* AliEveESDV0s::MakeV0(TEveTrackPropagator* rnrStyleNeg,TEveTrackPropaga
 void AliEveESDV0s::FillPointSet(TEvePointSet* ps, Bool_t onFly)
 {
     AliESDEvent* esd = AliEveEventManager::Instance()->AssertESD();
-    
+
     Int_t NV0s = esd->GetNumberOfV0s();
-    
+
     Double_t x, y, z;
     for (Int_t n = 0; n < NV0s; ++n)
     {
@@ -196,36 +204,43 @@ void AliEveESDV0s::FillPointSet(TEvePointSet* ps, Bool_t onFly)
 
 TEvePointSet* AliEveESDV0s::DrawPointsOffline()
 {
+    TEnv settings;
+    AliEveInit::GetConfig(&settings);
+
     TEvePointSet* points = new TEvePointSet("V0 offline vertex locations");
-    
+
     FillPointSet(points, kFALSE);
-    
+
     points->SetTitle(Form("N=%d", points->Size()));
-    points->SetMarkerStyle(4);
+    points->SetMarkerStyle(20);
     points->SetMarkerSize(1.5);
-    points->SetMarkerColor(kOrange+8);
-    
+    points->SetMarkerColor(settings.GetValue("vzero.offline",kOrange+8));
+
     gEve->AddElement(points);
     gEve->Redraw3D();
-    
+
     return points;
 }
 
 TEvePointSet* AliEveESDV0s::DrawPointsOnfly()
 {
+    TEnv settings;
+    AliEveInit::GetConfig(&settings);
+
     TEvePointSet* points = new TEvePointSet("V0 on-the-fly vertex locations");
-    
+
     FillPointSet(points, kTRUE);
-    
+
     points->SetTitle(Form("N=%d", points->Size()));
-    points->SetMarkerStyle(4);
+    points->SetMarkerStyle(20);
     points->SetMarkerSize(1.5);
-    points->SetMarkerColor(kPink+10);
-    
+    points->SetMarkerColor(settings.GetValue("vzero.onFly",kRed+2));
+
     gEve->AddElement(points);
     gEve->Redraw3D();
-    
+
     return points;
+
 }
 
 

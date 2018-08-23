@@ -21,14 +21,16 @@ public:
                   AliEveEventManager::EDataSource defaultDataSource= AliEveEventManager::kSourceOffline,
                   bool storageManager=false);
     ~AliEveInit(){};
-    
+
     static void GetConfig(TEnv *settings);
     static void AddMacros();
+    static void SetupCamera();
+    static void SetupBackground();
 private:
     const TString& fPath;
-    
+
     bool fShowHLTESDtree;
-    
+
     void Init();
     void ImportMacros();
 };

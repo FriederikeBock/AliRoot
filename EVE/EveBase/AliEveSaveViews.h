@@ -20,44 +20,48 @@
 class AliEveSaveViews
 {
 public:
-    AliEveSaveViews(int width=1440,int height=900,int heightInfoBar=65,bool showLiveBar=true);
-    ~AliEveSaveViews();
-    
-    void SaveForAmore();
-    void Save(bool withDialog=true,const char* filename="");
-    int SendToAmore();
+  AliEveSaveViews(int width=3840,int height=2160);
+  ~AliEveSaveViews();
+  // 3,840 × 2,160 (4K)
+  // 7,680 × 4,320 (8K)
+  // 15,360 × 8,640 (16K)
+
+  void SaveForAmore();
+  void Save(bool withDialog=true,const char* filename="");
+  int SendToAmore();
 private:
-    void ChangeRun();
-    
-    void BuildEventInfoString();
-    void BuildTriggerClassesStrings();
-    void BuildClustersInfoString();
-    
-    int fRunNumber;
-    int fCurrentFileNumber;
-    int fMaxFiles;
-    bool fShowLiveBar;
-    int fNumberOfClusters;
-    TString fCompositeImgFileName;
-    
-    AliESDEvent *fESDEvent;
-    
-    // images and dimensions
-    int fHeightInfoBar;     // height of the Information bar
-    int fWidth;             // width of resulting image
-    int fHeight;            // height of resulting image
-        
-    // strings with additional info
-    TString fEventInfo;
-    TString fTriggerClasses[3];
-    TString fClustersInfo;
-    
-    // info from logbook
-    std::vector<int> fCluster;
-    std::vector<ULong64_t> fInputDetectorMask;
-    
-    AliEveSaveViews(const AliEveSaveViews&);
-    AliEveSaveViews& operator=(const AliEveSaveViews&);
+  TASImage* GetPicture(int width, int heigth, int height3DView, bool projections=true);
+  TASImage* GetPictureSingle(int width, int heigth, TString subViewName );
+  void ChangeRun();
+
+  void BuildEventInfoString();
+  void BuildTriggerClassesStrings();
+  void BuildClustersInfoString();
+
+  int fRunNumber;
+  int fCurrentFileNumber;
+  int fMaxFiles;
+  int fNumberOfClusters;
+  TString fCompositeImgFileName;
+
+  AliESDEvent *fESDEvent;
+
+  // images and dimensions
+  int fHeightInfoBar;     // height of the Information bar
+  int fWidth;             // width of resulting image
+  int fHeight;            // height of resulting image
+
+  // strings with additional info
+  TString fEventInfo;
+  TString fTriggerClasses[3];
+  TString fClustersInfo;
+
+  // info from logbook
+  std::vector<int> fCluster;
+  std::vector<ULong64_t> fInputDetectorMask;
+
+  AliEveSaveViews(const AliEveSaveViews&);
+  AliEveSaveViews& operator=(const AliEveSaveViews&);
 };
 
 #endif

@@ -8,6 +8,7 @@
  **************************************************************************/
 
 #include "AliEveEventManager.h"
+#include "AliEveEventManagerEditor.h"
 #include "AliEveEventSelector.h"
 #include "AliEveMacroExecutor.h"
 #include "AliEveMultiView.h"
@@ -42,7 +43,7 @@
 #include <TEveText.h>
 #include <TEveTrans.h>
 #include <iostream>
-
+#include <sstream>
 
 using namespace std;
 
@@ -82,8 +83,8 @@ AliEveEventManager* AliEveEventManager::fgMaster  = NULL;
 
 AliEveEventManager::AliEveEventManager(EDataSource defaultDataSource) :
 TEveEventManager("Event", ""),
-fEventId(-1),fEventInfo(),fHasEvent(kFALSE),fCurrentRun(-1), fEmptyData(),
-fCurrentData(&fEmptyData),fCurrentDataSource(NULL),fDataSourceOnline(NULL),fDataSourceOffline(NULL),fDataSourceHLTZMQ(NULL),
+fEventId(-1),fEventInfo(),fHasEvent(kFALSE),fCurrentRun(-1),fSelectedTrigger(""),
+fCurrentData(&fEmptyData),fCurrentDataSource(NULL),fDataSourceOnline(NULL),fDataSourceOffline(NULL),fDataSourceHLTZMQ(NULL), fCurrentDataSourceType(defaultDataSource),
 fAutoLoad(kFALSE), fAutoLoadTime(5),fAutoLoadTimer(0),fAutoLoadTimerRunning(kFALSE),
 fTransients(0),
 fExecutor(0),fViewsSaver(0),fESDTracksDrawer(0),fAODTracksDrawer(0),fPrimaryVertexDrawer(0),fKinksDrawer(0),fCascadesDrawer(0),fV0sDrawer(0),fMuonTracksDrawer(0),fSPDTracklersDrawer(0),fKineTracksDrawer(0),  fMomentumHistogramsDrawer(0),fPEventSelector(0),
@@ -113,19 +114,19 @@ void AliEveEventManager::InitInternals()
 {
     // Initialize internal members.
     fgMaster = this;
-    
+
     fAutoLoadTimer = new TTimer;
     fAutoLoadTimer->Connect("Timeout()", "AliEveEventManager", this, "AutoLoadNextEvent()");
     fAutoLoadTimer->Connect("Timeout()", "AliEveEventManager", this, "Timeout()");
-    
+
     fExecutor = new AliEveMacroExecutor;
-    
+
     fTransients = new TEveElementList("Transients", "Transient per-event elements.");
     fTransients->IncDenyDestroy();
     gEve->AddToListTree(fTransients, kFALSE);
-    
+
     fPEventSelector = new AliEveEventSelector(this);
-    
+
     fViewsSaver = new AliEveSaveViews();
     fESDTracksDrawer = new AliEveESDTracks();
     fAODTracksDrawer = new AliEveAODTracks();
@@ -137,10 +138,10 @@ void AliEveEventManager::InitInternals()
     fMuonTracksDrawer = new AliEveESDMuonTracks();
     fSPDTracklersDrawer = new AliEveESDSPDTracklets();
     fKineTracksDrawer = new AliEveKineTracks();
-    
+
 #ifdef ZMQ
     fDataSourceOnline = new AliEveDataSourceOnline();
-    fDataSourceHLTZMQ = new AliEveDataSourceHLTZMQ();    
+    fDataSourceHLTZMQ = new AliEveDataSourceHLTZMQ();
 #endif
     fDataSourceOffline = new AliEveDataSourceOffline();
 }
@@ -168,6 +169,8 @@ void AliEveEventManager::ChangeDataSource(EDataSource newSource)
     }
     if (fCurrentDataSource) fCurrentData = fCurrentDataSource->GetData();
 
+    fCurrentDataSourceType = newSource;
+
     //restore timer
     if (fAutoLoad)
     {
@@ -179,7 +182,7 @@ void AliEveEventManager::DestroyTransients()
 {
     TEveManager::TRedrawDisabler rd(gEve);
     gEve->Redraw3D(kFALSE, kTRUE); // Enforce drop of all logicals.
-    
+
     gEve->GetViewers()->DeleteAnnotations();
     fTransients->DestroyElements();
     DestroyElements();
@@ -198,9 +201,9 @@ Int_t AliEveEventManager::GetMaxEventId(Bool_t refreshESD) const
 Int_t AliEveEventManager::CurrentEventId()
 {
     // Return current event-id.
-    
+
     static const TEveException kEH("AliEveEventManager::CurrentEventId ");
-    
+
     if (fgMaster == 0 || fgMaster->fHasEvent == kFALSE)
         throw (kEH + "ALICE event not ready.");
     return fgMaster->GetEventId();
@@ -216,7 +219,7 @@ AliRunLoader* AliEveEventManager::AssertRunLoader()
 {
     // Make sure AliRunLoader is initialized and return it.
     // Static utility for macros.
-    
+
     if (fgMaster == 0 || fgMaster->fHasEvent == kFALSE){
         cout<<"AliEveEventManager::AssertRunLoader : ALICE event not ready."<<endl;
         return 0;
@@ -233,7 +236,7 @@ AliESDEvent* AliEveEventManager::AssertESD()
     // Make sure AliESDEvent is initialized and return it.
     // Throws exception in case ESD is not available.
     // Static utility for macros.
-    
+
     if (fgMaster == 0 || fgMaster->fHasEvent == kFALSE){
         cout<<"AliEveEventManager::AssertESD() - ALICE event not ready."<<endl;
         return 0;
@@ -251,9 +254,9 @@ AliESDfriend* AliEveEventManager::AssertESDfriend()
     // Make sure AliESDfriend is initialized and return it.
     // Throws exception in case ESDfriend-loader is not available.
     // Static utility for macros.
-    
+
     static const TEveException kEH("AliEveEventManager::AssertESDfriend ");
-    
+
     if (fgMaster == 0 || fgMaster->fHasEvent == kFALSE)
         throw (kEH + "ALICE event not ready.");
     if (fgMaster->fCurrentData->fESDfriend == 0)
@@ -266,9 +269,9 @@ AliAODEvent* AliEveEventManager::AssertAOD()
     // Make sure AliAODEvent is initialized and return it.
     // Throws exception in case AOD is not available.
     // Static utility for macros.
-    
+
     static const TEveException kEH("AliEveEventManager::AssertAOD ");
-    
+
     if (fgMaster == 0 || fgMaster->fHasEvent == kFALSE)
         throw (kEH + "ALICE event not ready.");
     if (fgMaster->fCurrentData->fAOD == 0)
@@ -290,10 +293,10 @@ AliMagF* AliEveEventManager::AssertMagField()
     // Static utility for macros.
 
     static const TEveException kEH("AliEveEventManager::AssertMagField ");
-    
+
     //if we already have a field we're done
     if (fgMaster->fgMagField) return fgMaster->fgMagField;
-    
+
     //if not: init the mag field from the ESD information
     if (fgMaster->AssertESD()) fgMaster->AssertESD()->InitMagneticField();
 
@@ -303,7 +306,7 @@ AliMagF* AliEveEventManager::AssertMagField()
         fgMaster->fgMagField = dynamic_cast<AliMagF*>(TGeoGlobalMagField::Instance()->GetField());
         if (fgMaster->fgMagField) return fgMaster->fgMagField;
     }
-    
+
     //if no field from ESD, try to init from GRP
     if (!fgMaster->fgGRPLoaded)
     {
@@ -311,7 +314,7 @@ AliMagF* AliEveEventManager::AssertMagField()
             fgMaster->fgGRPLoaded = kTRUE;
         }
     }
-    
+
     //one last check
     if (!TGeoGlobalMagField::Instance()->GetField())
     {
@@ -324,7 +327,7 @@ AliMagF* AliEveEventManager::AssertMagField()
             fgMaster->fgGRPLoaded = kTRUE;
         }
     }
-    
+
     //check if now we have some field from the GRP:
     if (TGeoGlobalMagField::Instance()->GetField())
     {
@@ -336,7 +339,7 @@ AliMagF* AliEveEventManager::AssertMagField()
     {
         throw kEH + "Could not initialize magnetic field.";
     }
-    
+
     return fgMaster->fgMagField;
 }
 
@@ -348,14 +351,14 @@ TGeoManager* AliEveEventManager::AssertGeometry()
     // Throws exception if geometry can not be loaded or if it is not
     // available and the TGeoManager is locked.
     // Static utility for macros.
-    
+
     static const TEveException kEH("AliEveEventManager::AssertGeometry ");
-    
+
     if (AliGeomManager::GetGeometry() == 0)
     {
         if (TGeoManager::IsLocked())
             throw (kEH + "geometry is not loaded but TGeoManager is locked.");
-        
+
         gGeoManager = 0;
         AliGeomManager::LoadGeometry();
         if ( ! AliGeomManager::GetGeometry())
@@ -369,7 +372,7 @@ TGeoManager* AliEveEventManager::AssertGeometry()
         }
         AliGeomManager::GetGeometry()->DefaultColors();
     }
-    
+
     gGeoManager = AliGeomManager::GetGeometry();
     return gGeoManager;
 }
@@ -392,15 +395,15 @@ void AliEveEventManager::SetAutoLoad(Bool_t autoLoad)
 {
     // Set the automatic event loading mode
     static const TEveException kEH("AliEveEventManager::SetAutoLoad ");
-    
+
     cout<<"\n\n setting autoload to:"<<autoLoad<<endl;
-    
+
     if (fAutoLoad == autoLoad)
     {
         Warning(kEH, "Setting autoload to the same value as before - %s. Ignoring.", fAutoLoad ? "true" : "false");
         return;
     }
-    
+
     fAutoLoad = autoLoad;
     if (fAutoLoad)
     {
@@ -414,17 +417,23 @@ void AliEveEventManager::SetAutoLoad(Bool_t autoLoad)
     }
 }
 
+void AliEveEventManager::SetCurrentRun(int run)
+{
+  if(run != fCurrentRun)
+  {
+    fCurrentRun = run;
+    AliEveEventManagerWindow::GetInstance()->SetActiveTriggerClasses();
+  }
+}
+
 void AliEveEventManager::SetTrigSel(Int_t trig)
 {
     static const TEveException kEH("AliEveEventManager::SetTrigSel ");
-    
-    if (!fCurrentData->fRawReader)
-    {
+
+    if (!fCurrentData->fRawReader) {
         Warning(kEH, "No Raw-reader exists. Ignoring the call.");
         return;
-    }
-    else
-    {
+    } else  {
         ULong64_t trigMask = 0;
         if (trig >= 0) trigMask = (1ull << trig);
         Info(kEH,"Trigger selection: 0x%llx",trigMask);
@@ -452,32 +461,32 @@ void AliEveEventManager::AutoLoadNextEvent()
 {
     // Called from auto-load timer, so it has to be public.
     // Do NOT call it directly.
-        
+
     static const TEveException kEH("AliEveEventManager::AutoLoadNextEvent ");
-    
+
     Info(kEH, "called!");
-    
+
     if ( ! fAutoLoadTimerRunning || ! fAutoLoadTimer->HasTimedOut())
     {
         Warning(kEH, "Called unexpectedly - ignoring the call. Should ONLY be called from an internal timer.");
         return;
         }
-    
+
     StopAutoLoadTimer();
     cout<<"Calling NextEvent method on current data source"<<endl;
 
     fCurrentDataSource->NextEvent();
-    
+
     TEnv settings;
     AliEveInit::GetConfig(&settings);
-    
+
     if(settings.GetValue("save.on.autoload",false))
     {
         if(fCurrentData->fESD->GetNumberOfTracks() != 0){
             fViewsSaver->Save(false,Form("alice_%d.png",fEventId));
         }
     }
-    
+
     if (fAutoLoad){
         StartAutoLoadTimer();
     }
@@ -493,7 +502,7 @@ void AliEveEventManager::AfterNewEventLoaded()
     // At the end emit NewEventLoaded signal.
     //
     // Virtual from TEveEventManager.
-  
+
     Bool_t cdbOK = kTRUE;
     if (fCurrentData->fESD) {
       cdbOK = InitOCDB(fCurrentData->fESD->GetRunNumber());
@@ -501,19 +510,19 @@ void AliEveEventManager::AfterNewEventLoaded()
     if (!cdbOK) {
       printf("CDB not OK! not executing AfterNewEventLoaded\n");
       return;
-    }
-    else if(fCurrentData->fRawReader){
+    } else if(fCurrentData->fRawReader){
         InitOCDB(fCurrentData->fRawReader->GetRunNumber());
     }
     AliEveMultiView *mv = AliEveMultiView::Instance();
     mv->DestroyAllEvents();
-    
+
 
     cout<<"\n\n--------- AliEveEventManager::AfterNewEventLoaded ---------\n\n"<<endl;
-    
+    cout<<"event:"<<fCurrentData->fESD->GetEventNumberInFile()<<endl;
+
     ElementChanged();
     NewEventDataLoaded();
-    
+
 //    cout<<"\n\n-------- Executing registered macros ---------\n\n"<<endl;
     if (fExecutor){
         fExecutor->ExecMacros();
@@ -522,18 +531,18 @@ void AliEveEventManager::AfterNewEventLoaded()
         cout<<"no macro executor..."<<endl;
     }
 //    cout<<"\n\n-------- Macros have been executed ---------\n\n"<<endl;
-    
+
     TEveEventManager::AfterNewEventLoaded();
     NewEventLoaded();
 
     TEnv settings;
     AliEveInit::GetConfig(&settings);
-    
+
     if(fCurrentData->fESD && fHasEvent)
     {
         if(settings.GetValue("momentum.histograms.show",false)){fMomentumHistogramsDrawer->Draw();}
         if(settings.GetValue("tracks.primary.vertex.show",false)){fESDTracksDrawer->PrimaryVertexTracks();}
-        
+
         if(settings.GetValue("primary.vertex.global.box",false)){
             fPrimaryVertexDrawer->PrimaryVertex(AliEvePrimaryVertex::kGlobal,AliEvePrimaryVertex::kBox);
         }
@@ -561,7 +570,7 @@ void AliEveEventManager::AfterNewEventLoaded()
         if(settings.GetValue("primary.vertex.spd.cross",false)){
             fPrimaryVertexDrawer->PrimaryVertex(AliEvePrimaryVertex::kSPD,AliEvePrimaryVertex::kCross);
         }
-        
+
         if(settings.GetValue("tracks.byCategory.show",false))fESDTracksDrawer->ByCategory();
         if(settings.GetValue("tracks.byType.show",true))fESDTracksDrawer->ByType();
         if(settings.GetValue("tracks.byPt.show",false))fESDTracksDrawer->ByPt();
@@ -570,18 +579,20 @@ void AliEveEventManager::AfterNewEventLoaded()
         if(settings.GetValue("cascades.show",false)){fCascadesDrawer->Draw();}
         if(settings.GetValue("cascades.points.show",false)){fCascadesDrawer->DrawPoints();}
         if(settings.GetValue("V0s.show",false)){fV0sDrawer->Draw();}
+        if(settings.GetValue("V0s.show.onfly",false)){fV0sDrawer->Draw(kTRUE);}
+        if(settings.GetValue("V0s.show.offline",false)){fV0sDrawer->Draw(kFALSE);}
         if(settings.GetValue("V0s.points.offline.show",false)){fV0sDrawer->DrawPointsOffline();}
         if(settings.GetValue("V0s.points.onfly.show",false)){fV0sDrawer->DrawPointsOnfly();}
         if(settings.GetValue("MUON.show",true)){fMuonTracksDrawer->Draw();}
         if(settings.GetValue("SPD.tracklets.show",false)){fSPDTracklersDrawer->Draw();}
         if(settings.GetValue("kine.tracks.show",false)){fKineTracksDrawer->Draw();}
         if(settings.GetValue("HLT.tracks.show",false)){fESDTracksDrawer->HLTTracks();}
-        
+
         Double_t x[3] = { 0, 0, 0 };
-        
+
         AliESDEvent *esd = fCurrentData->fESD;
         esd->GetPrimaryVertex()->GetXYZ(x);
-        
+
         TTimeStamp ts(esd->GetTimeStamp());
         TString win_title("Eve Main Window -- Timestamp: ");
         win_title += ts.AsString("s");
@@ -594,13 +605,13 @@ void AliEveEventManager::AfterNewEventLoaded()
     if(fCurrentData->fAOD)
     {
         if(settings.GetValue("tracks.aod.byPID.show",false))fAODTracksDrawer->ByPID();
-        
+
         Double_t x[3] = { 0, 0, 0 };
-        
+
         AliAODEvent *aod = fCurrentData->fAOD;
-        
+
         aod->GetPrimaryVertex()->GetXYZ(x);
-        
+
         TTimeStamp ts(aod->GetTimeStamp());
         TString win_title("Eve Main Window -- Timestamp: ");
         win_title += ts.AsString("s");
@@ -610,28 +621,28 @@ void AliEveEventManager::AfterNewEventLoaded()
         win_title += aod->GetRunNumber();
         gEve->GetBrowser()->SetWindowName(win_title);
     }
-    
+
     TEveElement* top = gEve->GetCurrentEvent();
     mv->ImportEvent(top);
-    
+
     gEve->GetBrowser()->RaiseWindow();
     gEve->FullRedraw3D();
     gSystem->ProcessEvents();
-    
+
     bool saveViews = settings.GetValue("ALICE_LIVE.send",false);
-    
+
     if(saveViews  && fCurrentData->fESD->GetNumberOfTracks()>0)
     {
         fViewsSaver->SaveForAmore();
         fViewsSaver->SendToAmore();
     }
-    
+
     // animate tracks
     if(settings.GetValue("tracks.byType.animate",false)){
         TEveElementList *tracks = (TEveElementList*)gEve->GetCurrentEvent()->FindChild("ESD Tracks by PID");
-        
+
         vector<TEveTrackPropagator*> propagators;
-        
+
         for(TEveElement::List_i i = tracks->BeginChildren();i != tracks->EndChildren();i++)
         {
             TEveTrackList* trkList = ((TEveTrackList*)*i);
@@ -671,9 +682,9 @@ void AliEveEventManager::NoEventLoaded()
 Bool_t AliEveEventManager::InitGRP()
 {
     // Initialization of the GRP entry
-    
+
     static const TEveException kEH("AliEveEventManager::InitGRP ");
-    
+
     AliGRPManager grpMgr;
     if (!grpMgr.ReadGRPEntry()) {
         return kFALSE;
@@ -682,7 +693,7 @@ Bool_t AliEveEventManager::InitGRP()
     if (!grpMgr.SetMagField()) {
         throw kEH + "Setting of field failed!";
     }
-    
+
     return kTRUE;
 }
 
@@ -695,23 +706,19 @@ Bool_t AliEveEventManager::InitOCDB(int runNo)
   {
       TEnv settings;
       AliEveInit::GetConfig(&settings);
-      
+
     TString ocdbStorage = settings.GetValue("OCDB.default.path",Form("local://%s/../src/OCDB",gSystem->Getenv("ALICE_ROOT")));
-    if (gSystem->Getenv("ocdbStorage"))
-    {
+    if (gSystem->Getenv("ocdbStorage")) {
       printf("taking OCDB storage path from env ($ocdbStorage)\n");
       ocdbStorage = gSystem->Getenv("ocdbStorage");
-    }
-    else
-    {
+    } else {
         //now if we don't have a GRP we need to get one from somewhere
         cout<<"AliEveEventManager::InitOCDB : GRP Data from prompt reco params"<<endl;
         fCurrentDataSource->ReceivePromptRecoParameters(runNo);
     }
-    
+
     //on run change destroy the mag field, it will be reinitialized via AssertMagField/InitGRP
-    if (runNo != cdb->GetRun())
-    {
+    if (runNo != cdb->GetRun()) {
         delete TGeoGlobalMagField::Instance();
         new TGeoGlobalMagField();
         fgMaster->fgMagField=NULL;
@@ -738,7 +745,7 @@ Bool_t AliEveEventManager::InitOCDB(int runNo)
   return ok;
 }
 
-void AliEveEventManager::SetCdbUri(TString path) 
+void AliEveEventManager::SetCdbUri(TString path)
 {
   AliCDBManager::Instance()->SetDefaultStorage(path);
 }

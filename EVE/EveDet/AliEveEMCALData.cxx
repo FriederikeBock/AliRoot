@@ -630,7 +630,7 @@ void AliEveEMCALData::LoadRecPointsFromESD()
     
     Int_t mult = clus->GetNCells() ;
     
-    AliDebug(2,Form("In cluster %d, ncells %d, energy %2.2f, disp %2.2f, eta %2.2f, phi %2.2f",
+    AliDebug(0,Form("In cluster %d, ncells %d, energy %2.2f, disp %2.2f, eta %2.2f, phi %2.2f",
                     iclus,mult,energy,disp,eta,phi));
     
     Int_t clusId = clus->GetCellsAbsId()[0];

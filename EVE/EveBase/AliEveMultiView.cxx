@@ -29,34 +29,34 @@ f3DGeomScene(0), fRPhiGeomScene(0), fRhoZGeomScene(0),
 f3DEventScene(0),fRPhiEventScene(0), fRhoZEventScene(0)
 {
     // Constructor --- creates required scenes, projection managers and GL viewers
-    
+
     if (fgInstance){
         throw TEveException("AliEveMultiView::AliEveMultiView already instantiated.");
     }
     fgInstance = this;
-    
+
     // Scenes
     f3DGeomScene  = gEve->SpawnNewScene("3D Geometry","Scene holding 3D geometry.");
     fRPhiGeomScene  = gEve->SpawnNewScene("RPhi Geometry",
                                           "Scene holding projected geometry for the RPhi view.");
     fRhoZGeomScene  = gEve->SpawnNewScene("RhoZ Geometry",
                                           "Scene holding projected geometry for the RhoZ view.");
-    
+
     f3DEventScene = gEve->SpawnNewScene("3D Event Data","Scene holding 3D event-data.");
     fRPhiEventScene = gEve->SpawnNewScene("RPhi Event Data",
                                           "Scene holding projected event-data for the RPhi view.");
     fRhoZEventScene = gEve->SpawnNewScene("RhoZ Event Data",
                                           "Scene holding projected event-data for the RhoZ view.");
-    
+
     // Projection managers
     TEnv settings;
     AliEveInit::GetConfig(&settings);
     bool showAxes = settings.GetValue("axes.show", false);
-    
+
     fRPhiMgr = new TEveProjectionManager();
     fRPhiMgr->SetProjection(TEveProjection::kPT_RPhi);
     gEve->AddToListTree(fRPhiMgr, kFALSE);
-    
+
     if(showAxes)
     {
         TEveProjectionAxes* a = new TEveProjectionAxes(fRPhiMgr);
@@ -68,11 +68,11 @@ f3DEventScene(0),fRPhiEventScene(0), fRhoZEventScene(0)
         a->SetLabelFont(102);
         fRPhiGeomScene->AddElement(a);
     }
-    
+
     fRhoZMgr = new TEveProjectionManager();
     fRhoZMgr->SetProjection(TEveProjection::kPT_RhoZ);
     gEve->AddToListTree(fRhoZMgr, kFALSE);
-    
+
     if(showAxes)
     {
         TEveProjectionAxes* a = new TEveProjectionAxes(fRhoZMgr);
@@ -84,22 +84,22 @@ f3DEventScene(0),fRPhiEventScene(0), fRhoZEventScene(0)
         a->SetLabelFont(102);
         fRhoZGeomScene->AddElement(a);
     }
-    
+
     // Viewers
     TEveWindowSlot *slot = 0;
     TEveWindowPack *pack = 0;
-    
+
     slot = TEveWindow::CreateWindowInTab(gEve->GetBrowser()->GetTabRight());
     pack = slot->MakePack(); // slot is destroyed here
     pack->SetElementName("Multi View");
     pack->SetHorizontal();
     pack->SetShowTitleBar(kFALSE);
-    
+
     pack->NewSlotWithWeight(2)->MakeCurrent(); // new slot is created from pack
     f3DView = gEve->SpawnNewViewer("3D View MV", "");
     f3DView->AddScene(f3DGeomScene);
     f3DView->AddScene(f3DEventScene);
-    
+
     pack = pack->NewSlot()->MakePack(); // new slot created from pack, then slot is destroyed and new pack returned
     pack->SetShowTitleBar(kFALSE);
     pack->NewSlot()->MakeCurrent(); // new slot from pack
@@ -107,7 +107,7 @@ f3DEventScene(0),fRPhiEventScene(0), fRhoZEventScene(0)
     fRPhiView->GetGLViewer()->SetCurrentCamera(TGLViewer::kCameraOrthoXOY);
     fRPhiView->AddScene(fRPhiGeomScene);
     fRPhiView->AddScene(fRPhiEventScene);
-    
+
     pack->NewSlot()->MakeCurrent(); // new slot from pack
     fRhoZView = gEve->SpawnNewViewer("RhoZ View", "");
     fRhoZView->GetGLViewer()->SetCurrentCamera(TGLViewer::kCameraOrthoXOY);
@@ -124,14 +124,13 @@ AliEveMultiView::~AliEveMultiView()
 
 void AliEveMultiView::InitSimpleGeom(TEveGeoShape* geom, bool threeD, bool rPhi, bool rhoZ)
 {
-    if(!geom)
-    {
+    if(!geom){
         cout<<"AliEveMultiView::InitSimpleGeom -- geometry is NULL!"<<endl;
         return;
     }
-    
+
     fGeomVector.push_back(geom);
-    
+
     if(threeD){
         gEve->AddElement(geom,f3DGeomScene);
     }

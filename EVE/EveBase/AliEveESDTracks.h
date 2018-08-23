@@ -24,21 +24,21 @@ class AliEveESDTracks
 public:
     AliEveESDTracks();
     ~AliEveESDTracks();
-    
+
     TEveElementList*    ByCategory();
     TEveElementList*    ByType();
     TEveElementList*    ByPt();
     TEveElementList*    PrimaryVertexTracks();
     TEveTrackList*      HLTTracks();
-    
+
     AliEveTrack* MakeTrack(AliESDtrack *at, TEveTrackList* cont);
-    
+
 private:
     bool fUseIPonFailedITSrefit;
     bool fTrueField;
     bool fRKstepper;
     AliESDtrackCuts* fAnalCuts;
-    
+
     void SetupPropagator(TEveTrackPropagator* trkProp,Float_t magF, Float_t maxR);
     TString GetTitle(AliESDtrack* t);
     void AddParam(AliEveTrack* track, const AliExternalTrackParam* tp);
@@ -57,9 +57,10 @@ private:
 
     TEveElementList* ByAnalCuts();
     Width_t fWidth;
+    Style_t fStyle;
     bool fDashNoRefit;
     bool fDrawNoRefit;
-    
+
     AliEveESDTracks(const AliEveESDTracks&);
     AliEveESDTracks& operator=(const AliEveESDTracks&);
 };
