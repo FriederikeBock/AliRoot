@@ -139,39 +139,39 @@ AliEveV0* AliEveESDV0s::MakeV0(TEveTrackPropagator* rnrStyleNeg,TEveTrackPropaga
     AliPID negPid(negProbability);
     AliPID posPid(posProbability);
 
-    Int_t   negMostProbPdg =  0;
-    Int_t   posMostProbPdg =  0;
+    Int_t   negMostProbPdg =  11;
+    Int_t   posMostProbPdg =  11;
 
-    switch (negPid.GetMostProbable()){
-        case 0:
-            negMostProbPdg =   11; break;
-        case 1:
-            negMostProbPdg =   13; break;
-        case 2:
-            negMostProbPdg =  211; break;
-        case 3:
-            negMostProbPdg =  321; break;
-        case 4:
-            negMostProbPdg = 2212; break;
-        default :
-            negMostProbPdg =  211; break;
-    }
-
-    switch (posPid.GetMostProbable()){
-        case 0:
-            posMostProbPdg =   11; break;
-        case 1:
-            posMostProbPdg =   13; break;
-        case 2:
-            posMostProbPdg =  211; break;
-        case 3:
-            posMostProbPdg =  321; break;
-        case 4:
-            posMostProbPdg = 2212; break;
-        default :
-            posMostProbPdg =  211; break;
-    }
-//     printf("  %d %d.\n",posMostProbPdg,negMostProbPdg);
+//     switch (negPid.GetMostProbable()){
+//         case 0:
+//             negMostProbPdg =   11; break;
+//         case 1:
+//             negMostProbPdg =   13; break;
+//         case 2:
+//             negMostProbPdg =  211; break;
+//         case 3:
+//             negMostProbPdg =  321; break;
+//         case 4:
+//             negMostProbPdg = 2212; break;
+//         default :
+//             negMostProbPdg =  211; break;
+//     }
+//
+//     switch (posPid.GetMostProbable()){
+//         case 0:
+//             posMostProbPdg =   11; break;
+//         case 1:
+//             posMostProbPdg =   13; break;
+//         case 2:
+//             posMostProbPdg =  211; break;
+//         case 3:
+//             posMostProbPdg =  321; break;
+//         case 4:
+//             posMostProbPdg = 2212; break;
+//         default :
+//             posMostProbPdg =  211; break;
+//     }
+    printf("  %d %d.\n",posMostProbPdg,negMostProbPdg);
 
     Float_t negMaxProbPid  = negPid.GetProbability(negPid.GetMostProbable());
     Float_t posMaxProbPid  = posPid.GetProbability(posPid.GetMostProbable());
